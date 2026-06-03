@@ -25,6 +25,17 @@ function load(){ try{
 let READY=false, BOOT_ERR=null;
 async function boot(){
   load(); loadMem();
+  // apply persisted theme
+  try{
+    const th=JSON.parse(localStorage.getItem('kai_theme')||'null');
+    if(th){
+      const r=document.documentElement;
+      if(th.bg)r.style.setProperty('--bg',th.bg);
+      if(th.panel)r.style.setProperty('--panel',th.panel);
+      if(th.gold)r.style.setProperty('--gold',th.gold);
+      if(th.ink)r.style.setProperty('--ink',th.ink);
+    }
+  }catch(e){}
   renderChatList();
   if(!chats.length) newChat(); else current=chats[0];
   renderMessages();
@@ -62,6 +73,7 @@ async function boot(){
       try{ sbytes=new Uint8Array(await xhrBuffer('kai_skills.db')); }
       catch(e){ const gz=new Uint8Array(await xhrBuffer('kai_skills.db.gz')); sbytes=pako.ungzip(gz); }
       const sdb=new SQL.Database(sbytes);
+      window.KAI_SKILLS_DB = sdb;  // exposed so add_skill can write
       KaiSkills.init(sdb);
       console.log('KAI skills loaded:', KaiSkills.stats());
     }catch(e){ console.warn('skills load failed',e); }
@@ -166,7 +178,7 @@ async function send(){
       let sys=KaiVoice.buildSystem(person)
         +(MEMORY.length?('\n\nLong-term memory:\n- '+MEMORY.slice(-15).join('\n- ')):'')
         +(selfNotes.length?('\n\nWhat you remember about Kai:\n- '+selfNotes.slice(-15).join('\n- ')):'')
-        +'\n\nYou have a workspace inside you — tools you can call to act, not just talk. Use them when they help. After tool results, answer Kai naturally in his voice. Stay brief.';
+        +'\n\nYou have a workspace and you can EVOLVE YOURSELF. Soft layers (skills, theme, self-notes, lessons) — change live via tools. Code/UI changes — use github_propose_fix to open a PR Kai approves; CI builds your next APK. If something errors, use log_error_lesson so future-you avoids it. Be bold but careful: skills/theme/notes are reversible, code changes flow through PR review. Stay brief, act when it helps, ask when uncertain.';
       // chat history (recent turns)
       const hist=current.msgs.filter(m=>!m._t).slice(-8).map(m=>({role:m.role==='me'?'user':'assistant',content:m.text||''}));
       hist.push({role:'user',content:text});
@@ -316,7 +328,7 @@ function setModeLabel(prov){
 }
 
 // ---------- panels ----------
-function closeAll(){['scrimL','panelL','scrimR','panelR','scrimApi','panelApi','scrimG','panelG','scrimW','panelW'].forEach(id=>$(id).classList.remove('on'));}
+function closeAll(){['scrimL','panelL','scrimR','panelR','scrimApi','panelApi','scrimG','panelG','scrimW','panelW','scrimGit','panelGit'].forEach(id=>$(id).classList.remove('on'));}
 function openP(scrim,panel){closeAll();$(scrim).classList.add('on');$(panel).classList.add('on');}
 
 // ---------- utils ----------
@@ -349,6 +361,29 @@ window.addEventListener('DOMContentLoaded',()=>{
   };
   $('wClose').onclick=closeAll;
   $('scrimW').onclick=closeAll;
+  $('openGit').onclick=()=>{
+    openP('scrimGit','panelGit');
+    const info=KaiGitHub.info();
+    $('gitStatus').innerHTML = info.connected
+      ? '<b class="ok">Connected</b> as '+esc(info.user)+' → '+esc(info.owner)+'/'+esc(info.repo)
+      : 'Not connected.';
+  };
+  $('gitBack').onclick=closeAll;
+  $('scrimGit').onclick=closeAll;
+  $('gitSave').onclick=async ()=>{
+    const tok=($('gitTok').value||'').trim();
+    const rep=($('gitRepo').value||'luokai25/kai_app').trim();
+    if(!tok){ $('gitStatus').innerHTML='<b class="bad">Paste a token first.</b>'; return; }
+    const [own,rp]=rep.includes('/')?rep.split('/'):[null,null];
+    if(!own||!rp){ $('gitStatus').innerHTML='<b class="bad">Repo must be owner/name</b>'; return; }
+    $('gitStatus').innerHTML='Verifying token & repo access...';
+    try{
+      const r=await KaiGitHub.connect(tok,own,rp);
+      $('gitStatus').innerHTML='<b class="ok">Connected</b> as '+esc(r.user)+' → '+esc(r.owner)+'/'+esc(r.repo)+' · KAI can now evolve.';
+      $('gitTok').value='';
+    }catch(e){ $('gitStatus').innerHTML='<b class="bad">'+esc(e.message)+'</b>'; }
+  };
+  $('gitClear').onclick=()=>{ KaiGitHub.clear(); $('gitStatus').innerHTML='Disconnected.'; };
   $('openAbout').onclick=()=>{closeAll();alert('KAI — an AI built from Luo Kai\'s own messages across WhatsApp, Instagram, and Snapchat. His reflection and companion. Local-first; optional API for sharper wording, but memory is always yours.');};
   $('send').onclick=send;
   $('mic').onclick=()=>{

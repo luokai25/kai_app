@@ -145,6 +145,77 @@ window.KaiWorkspace = (function(){
         return { ok:true, result: (await r).say };
       }
     },
+    // ---- SELF-EVOLUTION TOOLS ----
+    add_skill: {
+      desc: "Save a new skill KAI just learned, so future-KAI can find and follow it. Use when you figure out a useful pattern.",
+      params: {name: "short skill name", description: "one-line what it does", body: "the actual instructions/knowledge"},
+      run: async ({name, description, body}) => {
+        if(!window.KaiSkills || !window.KaiSkills.ready()) return { ok:false, result:'skills DB not ready' };
+        try{
+          const db = window.KAI_SKILLS_DB;
+          if(!db) return { ok:false, result:'skills db handle not exposed' };
+          db.run("INSERT INTO skill(category,subcategory,name,description,tags,body) VALUES(?,?,?,?,?,?)",
+                 ['kai-learned','runtime',name,description||'',name,body||'']);
+          return { ok:true, result:'skill saved: '+name };
+        }catch(e){ return { ok:false, result:'save failed: '+e.message }; }
+      }
+    },
+    set_ui_theme: {
+      desc: "Change KAI's UI theme. Colors apply immediately and persist.",
+      params: {bg: "background color hex", panel: "panel color hex", gold: "accent/gold color hex", ink: "text color hex"},
+      run: async ({bg, panel, gold, ink}) => {
+        const root = document.documentElement;
+        if(bg) root.style.setProperty('--bg', bg);
+        if(panel) root.style.setProperty('--panel', panel);
+        if(gold) root.style.setProperty('--gold', gold);
+        if(ink) root.style.setProperty('--ink', ink);
+        try{ localStorage.setItem('kai_theme', JSON.stringify({bg,panel,gold,ink})); }catch(e){}
+        return { ok:true, result:'theme updated' };
+      }
+    },
+    github_read_self: {
+      desc: "Read one of KAI's own source files from GitHub so you can study or fix it. Files: app.js, kai_voice.js, workspace.js, providers.js, tools.js, skills.js, index.html.",
+      params: {path: "file path under www/ e.g. www/app.js"},
+      run: async ({path}) => {
+        if(!window.KaiGitHub.isConnected()) return { ok:false, result:'GitHub not connected — Kai needs to add a token in Settings.' };
+        try{ const f = await window.KaiGitHub.readFile(path); return { ok:true, result: f.text.slice(0,4500) }; }
+        catch(e){ return { ok:false, result:'read failed: '+e.message }; }
+      }
+    },
+    github_propose_fix: {
+      desc: "Propose a fix to KAI's own code by writing the new file content to a branch and opening a PR for Kai to approve. Use when you can fix a bug or improve something.",
+      params: {path: "file path", new_content: "the full new content of the file", title: "PR title", reason: "why this change"},
+      run: async ({path, new_content, title, reason}) => {
+        if(!window.KaiGitHub.isConnected()) return { ok:false, result:'GitHub not connected' };
+        try{
+          const branch = 'kai-evolve-'+Date.now();
+          await window.KaiGitHub.makeBranch(branch);
+          await window.KaiGitHub.writeFile(path, new_content, title||'KAI: improve '+path, branch);
+          const pr = await window.KaiGitHub.openPR(branch, title||('KAI: improve '+path), reason||'KAI proposed this change.');
+          return { ok:true, result: 'PR opened: '+pr.html_url+'\nKai can review and merge to trigger a new build.' };
+        }catch(e){ return { ok:false, result:'PR failed: '+e.message }; }
+      }
+    },
+    github_build_status: {
+      desc: "Check the status of the most recent CI build (whether KAI's next APK is built yet).",
+      params: {},
+      run: async () => {
+        if(!window.KaiGitHub.isConnected()) return { ok:false, result:'GitHub not connected' };
+        try{ const r=await window.KaiGitHub.latestRun(); return { ok:true, result: r?`status: ${r.status} / ${r.conclusion||'pending'}  ${r.html}`:'no runs found' }; }
+        catch(e){ return { ok:false, result:'check failed: '+e.message }; }
+      }
+    },
+    log_error_lesson: {
+      desc: "When something goes wrong, save the lesson so future-KAI avoids it. Persists across sessions.",
+      params: {error: "what went wrong", lesson: "what to do differently next time"},
+      run: async ({error, lesson}) => {
+        let lessons=[]; try{ lessons=JSON.parse(localStorage.getItem('kai_lessons')||'[]'); }catch(e){}
+        lessons.push({t:Date.now(), error:String(error||'').slice(0,300), lesson:String(lesson||'').slice(0,300)});
+        if(lessons.length>50) lessons.shift();
+        try{ localStorage.setItem('kai_lessons', JSON.stringify(lessons)); }catch(e){}
+        return { ok:true, result:'lesson logged ('+lessons.length+' total)' };
+      }
+    },
   };
 
   // What KAI knows about (for the API prompt)

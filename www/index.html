@@ -119,6 +119,7 @@
     <div class="row" id="openWorkspace"><span class="ic">🧠</span> KAI's workspace</div>
     <div class="sec">Settings</div>
     <div class="row" id="openApi"><span class="ic">🔑</span> API provider</div>
+    <div class="row" id="openGit"><span class="ic">🐙</span> GitHub (self-evolve)</div>
     <div class="row" id="toggleVoice"><span class="ic">🔊</span> KAI speaks replies: <b id="voiceState" style="margin-left:6px;color:var(--gold)">off</b></div>
     <div class="row" id="openAbout"><span class="ic">✦</span> About KAI</div>
   </div>
@@ -164,6 +165,21 @@
     </div>
   </div>
 
+  
+  <!-- GITHUB SETTINGS PANEL -->
+  <div class="scrim" id="scrimGit"></div>
+  <div class="panel left" id="panelGit" style="z-index:60">
+    <h3>GitHub — self-evolve</h3>
+    <div class="note">Connect KAI to his own GitHub repo so he can read his source, propose fixes, and trigger his own next-build via the CI you already have. Token stays on this device.</div>
+    <div class="note" style="color:var(--gold)"><b>How to get a token:</b><br>1. GitHub → Settings → Developer settings → Personal access tokens → <b>Fine-grained tokens</b><br>2. Generate: scope to repo <b>luokai25/kai_app</b>, permissions: Contents (R/W), Pull requests (R/W), Actions (Read).<br>3. Paste below.</div>
+    <div class="field"><label>GitHub token (PAT)</label><input id="gitTok" type="password" placeholder="github_pat_..."></div>
+    <div class="field"><label>Owner / Repo</label><input id="gitRepo" type="text" placeholder="luokai25/kai_app" value="luokai25/kai_app"></div>
+    <div class="note" id="gitStatus">Not connected.</div>
+    <div class="btn" id="gitSave">Connect</div>
+    <div class="btn ghost" id="gitClear">Disconnect</div>
+    <div class="btn ghost" id="gitBack">← Back</div>
+  </div>
+
   <!-- FULL GRAPH -->
   <div class="scrim" id="scrimG"></div>
   <div class="panel left" id="panelG" style="width:100%;max-width:100%;z-index:60">
@@ -182,6 +198,7 @@
   <script src="voice.js"></script>
   <script src="tools.js"></script>
   <script src="skills.js"></script>
+  <script src="github_connect.js"></script>
   <script src="workspace.js"></script>
   <script src="kai_voice.js"></script>
   <script src="app.js"></script>
