@@ -91,19 +91,39 @@ window.KaiWorkspace = (function(){
         return { ok:true, result: 'remembered ('+SELFNOTES.length+' total)' };
       }
     },
+    find_skill: {
+      desc: "Search KAI's skill library (9,786 expert skills across coding, science, business, AI, math, etc.) to find skills relevant to the task. Returns top matches.",
+      params: {query: "what kind of skill is needed"},
+      run: async ({query}) => {
+        if(!window.KaiSkills || !window.KaiSkills.ready()) return { ok:false, result:'skills not loaded' };
+        const hits = window.KaiSkills.search(query, 5);
+        if(!hits.length) return { ok:true, result:'(no matching skills)' };
+        return { ok:true, result: hits.map(h=>'• '+h.name+' ['+h.category+']: '+h.description).join("\n") };
+      }
+    },
+    load_skill: {
+      desc: "Load a specific skill's full instructions to follow it. Use after find_skill to read the skill content.",
+      params: {name: "exact skill name from find_skill"},
+      run: async ({name}) => {
+        if(!window.KaiSkills || !window.KaiSkills.ready()) return { ok:false, result:'skills not loaded' };
+        const sk = window.KaiSkills.load(name);
+        if(!sk) return { ok:false, result:'skill not found: '+name };
+        return { ok:true, result: '# '+sk.name+'\n'+sk.description+'\n\n'+sk.body.slice(0,3500) };
+      }
+    },
     knowledge_lookup: {
-      desc: "Search KAI's assistant knowledge base (6,953 curated Q&A from HuggingFace: how-to, brainstorm, coding, writing, summarizing). Use when Kai asks for general help, not memory-specific.",
-      params: {query: "what to look up", category: "(optional) Generation, Open QA, Brainstorm, Coding, Rewrite, Classify, Summarize"},
-      run: async ({query, category}) => {
-        if(!window.KAI_KNOWLEDGE) return { ok:false, result:'knowledge base not loaded yet' };
+      desc: "Search KAI's curated knowledge (28k entries: practical assist, world facts, math reasoning). Use for help when memory isn't enough.",
+      params: {query: "what to look up", pillar: "(optional) assist | world | reason"},
+      run: async ({query, pillar}) => {
+        if(!window.KAI_KNOWLEDGE) return { ok:false, result:'knowledge not loaded' };
         try{
           const qs=(query||'').toLowerCase().split(/\s+/).filter(w=>w.length>2).slice(0,4);
           if(!qs.length) return { ok:true, result:'(empty query)' };
-          const like=qs.map(w=>`(q LIKE '%${w.replace(/'/g,"")}%' OR a LIKE '%${w.replace(/'/g,"")}%')`).join(" AND ");
-          const cat = category ? ` AND cat='${category.replace(/'/g,"")}'` : '';
-          const r=window.KAI_KNOWLEDGE.exec(`SELECT cat,q,a FROM know WHERE ${like}${cat} LIMIT 3`);
+          const like=qs.map(w=>"(q LIKE '%"+w.replace(/'/g,"")+"%' OR a LIKE '%"+w.replace(/'/g,"")+"%')").join(" AND ");
+          const pf = pillar ? " AND pillar='"+pillar.replace(/'/g,"")+"'" : '';
+          const r=window.KAI_KNOWLEDGE.exec("SELECT pillar,cat,q,a FROM know WHERE "+like+pf+" LIMIT 3");
           if(!r[0]) return { ok:true, result:'(no match)' };
-          const out = r[0].values.map(v=>`[${v[0]}] Q: ${v[1].slice(0,150)}\nA: ${v[2].slice(0,400)}`).join("\n\n");
+          const out = r[0].values.map(v=>'['+v[0]+'/'+v[1]+'] Q: '+v[2].slice(0,150)+'\nA: '+v[3].slice(0,400)).join("\n\n");
           return { ok:true, result: out };
         }catch(e){ return { ok:false, result:'lookup failed: '+e.message }; }
       }

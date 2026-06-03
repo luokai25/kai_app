@@ -56,6 +56,15 @@ async function boot(){
       window.KAI_KNOWLEDGE=new SQL.Database(kbytes);
       console.log('KAI knowledge loaded');
     }catch(e){ console.warn('knowledge load failed',e); }
+    // Load KAI's skill library (9,786 Claude-style skills)
+    try{
+      let sbytes;
+      try{ sbytes=new Uint8Array(await xhrBuffer('kai_skills.db')); }
+      catch(e){ const gz=new Uint8Array(await xhrBuffer('kai_skills.db.gz')); sbytes=pako.ungzip(gz); }
+      const sdb=new SQL.Database(sbytes);
+      KaiSkills.init(sdb);
+      console.log('KAI skills loaded:', KaiSkills.stats());
+    }catch(e){ console.warn('skills load failed',e); }
     READY=true;
     if(api.key&&api.provider) setModeLabel(api.provider);
     renderChatList();
