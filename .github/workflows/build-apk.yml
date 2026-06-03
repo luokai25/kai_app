@@ -47,9 +47,10 @@ jobs:
       - name: Train KAI (CPU stage — voice + identity packs)
         run: |
           set -e
-          # the DB ships gzipped in repo; gunzip for training
-          if [ -f www/app_corpus.db.gz ]; then gunzip -kf www/app_corpus.db.gz; fi
+          # DB ships gzipped in repo; expand to raw for training AND for bundling, drop the gz
+          if [ -f www/app_corpus.db.gz ]; then gunzip -f www/app_corpus.db.gz; fi
           python3 training/train.py || echo "training stage skipped"
+          ls -la www/ | grep app_corpus
         env:
           KAI_DB: www/app_corpus.db
           KAI_OUT: www
