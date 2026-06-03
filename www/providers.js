@@ -8,7 +8,7 @@ window.Providers = (function(){
       model: "claude-haiku-4-5",
       build: (k,msgs,sys) => ({
         headers:{"Content-Type":"application/json","x-api-key":k,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
-        body: JSON.stringify({model:"claude-haiku-4-5",max_tokens:512,system:sys,messages:msgs})
+        body: JSON.stringify({model:"claude-haiku-4-5",max_tokens:2000,system:sys,messages:msgs})
       }),
       parse: d => d.content?.map(b=>b.text||"").join("") || ""
     },
@@ -18,7 +18,7 @@ window.Providers = (function(){
       model: "llama-3.3-70b-versatile",
       build: (k,msgs,sys) => ({
         headers:{"Content-Type":"application/json","Authorization":"Bearer "+k},
-        body: JSON.stringify({model:"llama-3.3-70b-versatile",max_tokens:512,messages:[{role:"system",content:sys},...msgs]})
+        body: JSON.stringify({model:"llama-3.3-70b-versatile",max_tokens:2000,messages:[{role:"system",content:sys},...msgs]})
       }),
       parse: d => d.choices?.[0]?.message?.content || ""
     },
@@ -28,7 +28,7 @@ window.Providers = (function(){
       model: "mistral-small-latest",
       build: (k,msgs,sys) => ({
         headers:{"Content-Type":"application/json","Authorization":"Bearer "+k},
-        body: JSON.stringify({model:"mistral-small-latest",max_tokens:512,messages:[{role:"system",content:sys},...msgs]})
+        body: JSON.stringify({model:"mistral-small-latest",max_tokens:2000,messages:[{role:"system",content:sys},...msgs]})
       }),
       parse: d => d.choices?.[0]?.message?.content || ""
     },
@@ -38,7 +38,7 @@ window.Providers = (function(){
       model: "gpt-4o-mini",
       build: (k,msgs,sys) => ({
         headers:{"Content-Type":"application/json","Authorization":"Bearer "+k},
-        body: JSON.stringify({model:"gpt-4o-mini",max_tokens:512,messages:[{role:"system",content:sys},...msgs]})
+        body: JSON.stringify({model:"gpt-4o-mini",max_tokens:2000,messages:[{role:"system",content:sys},...msgs]})
       }),
       parse: d => d.choices?.[0]?.message?.content || ""
     },
@@ -119,7 +119,7 @@ window.Providers = (function(){
     // OpenAI-compatible loop
     const tools = _openaiTools(toolspec);
     const used = []; let extraHtml = null;
-    for(let step=0; step<3; step++){
+    for(let step=0; step<15; step++){
       const url = DEFS[name].url;
       const body = {
         model: DEFS[name].model, max_tokens: 700,

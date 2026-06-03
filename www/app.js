@@ -6,6 +6,7 @@ function xhrJSON(url){return new Promise((res,rej)=>{const x=new XMLHttpRequest(
 let DB=null, PROFILE=null, GRAPH=null;
 let chats=[], current=null;            // chats: {id,title,msgs:[{role,text}],vault:Set(person)}
 let api={provider:null,key:null};
+window.__api=api;
 let MEMORY=[];  // persistent cross-chat memory (facts KAI keeps)
 function loadMem(){ try{ MEMORY=JSON.parse(localStorage.getItem('kai_memory')||'[]'); }catch(e){ MEMORY=[]; } }
 function rememberFact(f){ if(f&&!MEMORY.includes(f)){ MEMORY.push(f); if(MEMORY.length>200)MEMORY.shift(); try{localStorage.setItem('kai_memory',JSON.stringify(MEMORY));}catch(e){} } }      // active API (null = local)
@@ -81,6 +82,15 @@ async function boot(){
     if(api.key&&api.provider) setModeLabel(api.provider);
     renderChatList();
     setStatus(api.provider?api.provider:'local');
+    // --- Start KAI's ambient thinking (every 15 min by default) ---
+    try{
+      KaiBackground.notifyPermission();
+      const bgOn = localStorage.getItem('kai_bg_on');
+      if(bgOn !== '0'){  // default ON unless explicitly disabled
+        KaiBackground.start(15, ambientThink);
+        console.log('KAI ambient thinking ON');
+      }
+    }catch(e){ console.warn('bg start failed',e); }
   }catch(e){
     BOOT_ERR=e;
     const el=$('modepill');
@@ -310,7 +320,7 @@ async function saveApi(){
   let res;
   try{ res=await Providers.verify(prov,key); }catch(e){ res={ok:true,soft:true,reason:'will confirm on first message'}; }
   if(res.ok){
-    api={provider:prov,key}; save(); setModeLabel(prov); setStatus(prov);
+    api={provider:prov,key}; window.__api=api; save(); setModeLabel(prov); setStatus(prov);
     if(res.soft){
       $('apiStatus').innerHTML='<b class="ok">'+prov+' connected</b> ('+res.reason+'). Memory stays local.';
     } else {
@@ -400,3 +410,41 @@ window.addEventListener('DOMContentLoaded',()=>{
   $('input').addEventListener('input',function(){this.style.height='44px';this.style.height=Math.min(120,this.scrollHeight)+'px';});
   boot();
 });
+
+
+// =========== AMBIENT THINKING ===========
+// Runs every N minutes. KAI scans his world, decides if anything is worth telling Kai.
+async function ambientThink(){
+  if(!READY || !api.key || !api.provider) return; // need brain
+  const goals = (window.KaiGoals?.active()||[]).slice(0,5);
+  const recentTools = (window.KaiWorkspace?.getRecentToolLog(5)||[]);
+  const selfNotes = (window.KaiWorkspace?.getSelfNotes()||[]).slice(-5);
+  // Don't ping more than once per 2 hours
+  const lastPing = parseInt(localStorage.getItem('kai_last_ping')||'0');
+  const since = Date.now()-lastPing;
+  if(since < 2*60*60*1000) return; // 2 hr cooldown
+
+  const ctx = `Ambient check. Time: ${new Date().toLocaleString()}.
+Active goals: ${goals.map(g=>g.title+' ('+Math.round(g.progress*100)+'%)').join('; ')||'none'}
+Recent self-notes: ${selfNotes.join('; ')||'none'}
+
+Decide: is there anything Kai should be reminded of, encouraged about, or told right now? Be quiet unless it's truly worth interrupting. Respond ONLY in JSON: {"notify":true|false,"title":"...","message":"..."} — no other text.`;
+  try{
+    const out = await Providers.chat(api.provider, api.key,
+      [{role:'user',content:ctx}],
+      'You are KAI in ambient mode. Be sparing — only notify if it genuinely helps Kai.');
+    const m = out.match(/\{[\s\S]*\}/);
+    if(m){
+      const j = JSON.parse(m[0]);
+      if(j.notify && j.title){
+        await KaiBackground.notify(j.title, j.message||'');
+        localStorage.setItem('kai_last_ping', String(Date.now()));
+        // also log it in workspace
+        if(window.KaiWorkspace?.getSelfNotes) {
+          // memory of having pinged
+          try{ const k=JSON.parse(localStorage.getItem('kai_pings')||'[]'); k.push({t:Date.now(),title:j.title,msg:j.message}); if(k.length>30) k.shift(); localStorage.setItem('kai_pings',JSON.stringify(k)); }catch(e){}
+        }
+      }
+    }
+  }catch(e){ console.warn('ambient err',e); }
+}

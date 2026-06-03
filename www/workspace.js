@@ -145,6 +145,67 @@ window.KaiWorkspace = (function(){
         return { ok:true, result: (await r).say };
       }
     },
+    // ---- VAULT (structured memory) ----
+    vault_remember_entity: {
+      desc: "Save or update an entity (person, project, place, thing) in the structured knowledge graph.",
+      params: {name:"entity name", type:"person|project|place|thing", attrs:"JSON of attributes (optional)"},
+      run: async ({name,type,attrs})=>{
+        let a={}; try{ if(attrs) a=typeof attrs==='string'?JSON.parse(attrs):attrs; }catch(e){}
+        const e=window.KaiVault.upsertEntity(name,type,a);
+        return { ok:!!e, result: e?('entity saved: '+e.name+' ('+e.type+')'):'failed' };
+      }
+    },
+    vault_remember_fact: {
+      desc: "Save a structured fact about an entity (subject — predicate — object). Use to build durable knowledge.",
+      params: {subject:"who/what", predicate:"the relation/property", object:"the value"},
+      run: async ({subject,predicate,object})=>{
+        const f=window.KaiVault.addFact(subject,predicate,object,0.9);
+        return { ok:!!f, result: f?('fact: '+subject+' — '+predicate+' — '+object):'failed' };
+      }
+    },
+    vault_about: {
+      desc: "Look up everything KAI knows about an entity from the structured vault.",
+      params: {name:"entity name"},
+      run: async ({name})=>{
+        const r=window.KaiVault.aboutEntity(name);
+        if(!r||!r.entity) return { ok:true, result:'(no entity named '+name+' in vault yet)' };
+        const facts=r.facts.map(f=>'• '+f.p+': '+(f.o||'(blank)')).join('\n');
+        const rels=r.relations.map(rel=>'• '+rel.from+' --'+rel.type+'--> '+rel.to).join('\n');
+        return { ok:true, result: `${r.entity.name} (${r.entity.type})\n${facts}\n${rels?'\nrelations:\n'+rels:''}` };
+      }
+    },
+    // ---- GOALS ----
+    goal_add: {
+      desc:"Create a new objective Kai is pursuing.",
+      params:{title:"the objective", why:"why it matters"},
+      run: async ({title,why})=>{ const o=window.KaiGoals.add(title,why); return { ok:!!o, result:'objective: '+title+' (id '+o.id+')' }; }
+    },
+    goal_progress: {
+      desc:"Record progress on an objective by id.",
+      params:{id:"objective id", note:"what happened"},
+      run: async ({id,note})=>{ const o=window.KaiGoals.checkin(id,note); return { ok:!!o, result: o?'progress noted on '+o.title:'objective not found' }; }
+    },
+    goal_list: {
+      desc:"List Kai\'s active objectives.",
+      params:{},
+      run: async ()=>{ const a=window.KaiGoals.active(); if(!a.length) return {ok:true,result:'(no active goals)'};
+        return { ok:true, result: a.map(o=>`• ${o.title} (${Math.round(o.progress*100)}%)`).join('\n') }; }
+    },
+    // ---- SPECIALIST DELEGATION ----
+    delegate_to_specialist: {
+      desc: "Hand a task off to a specialist sub-personality (researcher, coder, writer, planner, analyst, companion). Returns the specialist's answer.",
+      params: {role:"researcher|coder|writer|planner|analyst|therapist", task:"what to do"},
+      run: async ({role,task})=>{
+        const r=window.KaiRoles.get(role); if(!r) return { ok:false, result:'unknown role: '+role };
+        // Use a fresh API call with the specialist's system prompt
+        try{
+          if(!window.__api?.key) return { ok:false, result:'specialist needs API brain — set a Groq key' };
+          const out = await Providers.chat(window.__api.provider, window.__api.key,
+            [{role:'user',content:task}], r.system);
+          return { ok:true, result:'['+r.name+']: '+out };
+        }catch(e){ return { ok:false, result:'delegation failed: '+e.message }; }
+      }
+    },
     // ---- SELF-EVOLUTION TOOLS ----
     add_skill: {
       desc: "Save a new skill KAI just learned, so future-KAI can find and follow it. Use when you figure out a useful pattern.",
@@ -230,6 +291,11 @@ window.KaiWorkspace = (function(){
   async function exec(name, args){
     const t = TOOLS[name];
     if(!t) { logTool(name,args,'unknown tool',false); return { ok:false, result:'unknown tool: '+name }; }
+    // Authority check: risky tools need approval
+    if(window.KaiAuthority && window.KaiAuthority.needsApproval(name)){
+      const ok = await window.KaiAuthority.requestApproval(name, args||{});
+      if(!ok){ logTool(name, JSON.stringify(args||{}), 'denied by Kai', false); return { ok:false, result:'denied' }; }
+    }
     try{
       const r = await t.run(args||{});
       logTool(name, JSON.stringify(args||{}), r.result, r.ok);
