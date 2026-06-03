@@ -1,5 +1,8 @@
 // KAI app — fused chat + graphs, local/API hybrid brain.
 const $=id=>document.getElementById(id);
+// WebView-safe local loaders: fetch() is unreliable on file:// in Android WebView.
+function xhrBuffer(url){return new Promise((res,rej)=>{const x=new XMLHttpRequest();x.open('GET',url,true);x.responseType='arraybuffer';x.onload=()=>{if(x.status===0||x.status===200)res(x.response);else rej(new Error('xhr '+x.status));};x.onerror=()=>rej(new Error('xhr error '+url));x.send();});}
+function xhrJSON(url){return new Promise((res,rej)=>{const x=new XMLHttpRequest();x.open('GET',url,true);x.onload=()=>{try{res(JSON.parse(x.responseText));}catch(e){rej(e);}};x.onerror=()=>rej(new Error('xhr error '+url));x.send();});}
 let DB=null, PROFILE=null, GRAPH=null;
 let chats=[], current=null;            // chats: {id,title,msgs:[{role,text}],vault:Set(person)}
 let api={provider:null,key:null};
@@ -26,28 +29,31 @@ async function boot(){
   if(!chats.length) newChat(); else current=chats[0];
   renderMessages();
   try{
-    PROFILE=await fetch('self_profile.json').then(r=>r.json()).catch(()=>({}));
-    GRAPH=await fetch('people_graph.json').then(r=>r.json()).catch(()=>({nodes:[],edges:[]}));
-    const SQL=await initSqlJs({locateFile:()=>'sql-wasm.wasm'});
-    // APK ships the raw .db (CI gunzips it). Open directly — no JS unzip step.
+    PROFILE=await xhrJSON('self_profile.json').catch(()=>({}));
+    GRAPH=await xhrJSON('people_graph.json').catch(()=>({nodes:[],edges:[]}));
+    drawFullGraph();  // graph only needs the json, not the DB — draw it early
+    let wasmBin=null;
+    try{ wasmBin=await xhrBuffer('sql-wasm.wasm'); }catch(e){}
+    const SQL=await initSqlJs(wasmBin?{wasmBinary:wasmBin}:{locateFile:()=>'sql-wasm.wasm'});
+    // APK ships the raw .db. Read via XHR (fetch() is unreliable on file:// in WebView).
     let bytes;
     try{
-      bytes=new Uint8Array(await fetch('app_corpus.db').then(r=>{if(!r.ok)throw 0;return r.arrayBuffer()}));
+      bytes=new Uint8Array(await xhrBuffer('app_corpus.db'));
     }catch(e){
-      // fallback if a build ever ships the gz
-      const gz=new Uint8Array(await fetch('app_corpus.db.gz').then(r=>r.arrayBuffer()));
+      const gz=new Uint8Array(await xhrBuffer('app_corpus.db.gz'));
       bytes=pako.ungzip(gz);
     }
     DB=new SQL.Database(bytes);
     KaiVoice.init(DB,PROFILE);
     READY=true;
     if(api.key&&api.provider) setModeLabel(api.provider);
-    drawFullGraph();
     renderChatList();
     setStatus(api.provider?api.provider:'local');
   }catch(e){
     BOOT_ERR=e;
-    setStatus('error');
+    const el=$('modepill');
+    el.innerHTML='<b style="color:#ff8787">load failed: '+esc(String(e&&e.message||e)).slice(0,60)+' — tap to retry</b>';
+    el.onclick=()=>{el.onclick=null;boot();};
     console.error('boot failed',e);
   }
 }
@@ -169,18 +175,20 @@ function detectPerson(text){
 function drawGraph(canvas, nodes, edges, info, onTap){
   const ctx=canvas.getContext('2d');
   const dpr=window.devicePixelRatio||1;
-  function size(){ canvas.width=canvas.clientWidth*dpr; canvas.height=canvas.clientHeight*dpr; }
+  function size(){ canvas.width=(canvas.clientWidth||300)*dpr; canvas.height=(canvas.clientHeight||400)*dpr; }
   size();
   const W=()=>canvas.width, H=()=>canvas.height;
-  // simple radial layout: Kai center, others around by size
   const cx=()=>W()/2, cy=()=>H()/2;
   const others=nodes.filter(n=>n.id!=='Kai');
-  others.forEach((n,i)=>{
-    const a=(i/others.length)*Math.PI*2 - Math.PI/2;
-    const r=Math.min(W(),H())*0.34*(0.7+0.3*Math.random());
-    n._x=cx()+Math.cos(a)*r; n._y=cy()+Math.sin(a)*r;
-  });
-  const kai=nodes.find(n=>n.id==='Kai'); if(kai){kai._x=cx();kai._y=cy();}
+  function layout(){
+    others.forEach((n,i)=>{
+      const a=(i/others.length)*Math.PI*2 - Math.PI/2;
+      const r=Math.min(W(),H())*0.34*(0.78+0.22*((i*53%17)/17));
+      n._x=cx()+Math.cos(a)*r; n._y=cy()+Math.sin(a)*r;
+    });
+    const kai=nodes.find(n=>n.id==='Kai'); if(kai){kai._x=cx();kai._y=cy();}
+  }
+  layout();
   let view={s:1,x:0,y:0};
   function draw(){
     ctx.setTransform(dpr,0,0,dpr,0,0);
@@ -218,7 +226,7 @@ function drawGraph(canvas, nodes, edges, info, onTap){
     drag=null;
   };
   canvas.onwheel=e=>{e.preventDefault();const f=e.deltaY<0?1.1:0.9;view.s=Math.max(.3,Math.min(3,view.s*f));draw();};
-  return {redraw:()=>{size();draw();}};
+  return {redraw:()=>{size();layout();draw();}};
 }
 
 let fullG=null, vaultG=null;
@@ -280,10 +288,10 @@ function esc(s){return (s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':
 // ---------- events ----------
 window.addEventListener('DOMContentLoaded',()=>{
   $('btnLeft').onclick=()=>openP('scrimL','panelL');
-  $('btnRight').onclick=()=>{openP('scrimR','panelR');setTimeout(()=>vaultG&&vaultG.redraw(),300);};
+  $('btnRight').onclick=()=>{openP('scrimR','panelR');setTimeout(()=>vaultG&&vaultG.redraw(),360);};
   $('scrimL').onclick=closeAll;$('scrimR').onclick=closeAll;$('scrimApi').onclick=closeAll;$('scrimG').onclick=closeAll;
   $('newChat').onclick=newChat;
-  $('openFullGraph').onclick=()=>{openP('scrimG','panelG');setTimeout(()=>fullG&&fullG.redraw(),300);};
+  $('openFullGraph').onclick=()=>{openP('scrimG','panelG');setTimeout(()=>fullG&&fullG.redraw(),360);};
   $('gClose').onclick=closeAll;
   $('openApi').onclick=()=>{openP('scrimApi','panelApi');
     $('apiStatus').innerHTML=api.provider?`Currently: <b class="ok">${api.provider}</b>`:'Currently: <b class="ok">Local mode</b>';};
