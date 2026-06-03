@@ -1,0 +1,381 @@
+{
+ "nodes": [
+  {
+   "id": "Kai",
+   "label": "Kai",
+   "size": 60,
+   "color": "#fff3bf",
+   "tier": 0,
+   "desc": "you — the center"
+  },
+  {
+   "id": "Asmaa Ali",
+   "label": "Asmaa Ali",
+   "size": 26.35127811985641,
+   "color": "#74c0fc",
+   "tier": 3,
+   "desc": "friend",
+   "messages": 2523,
+   "platforms": [
+    "whatsapp"
+   ]
+  },
+  {
+   "id": "Sasuke",
+   "label": "Sasuke",
+   "size": 35.50162825449004,
+   "color": "#74c0fc",
+   "tier": 3,
+   "desc": "friend",
+   "messages": 6766,
+   "platforms": [
+    "whatsapp",
+    "instagram"
+   ]
+  },
+  {
+   "id": "ElTohamy",
+   "label": "ElTohamy",
+   "size": 27.740238309530653,
+   "color": "#74c0fc",
+   "tier": 3,
+   "desc": "friend",
+   "messages": 3035,
+   "platforms": [
+    "whatsapp",
+    "instagram"
+   ]
+  },
+  {
+   "id": "Bosey",
+   "label": "Bosey",
+   "size": 37.134738949128085,
+   "color": "#ffa94d",
+   "tier": 2,
+   "desc": "close",
+   "messages": 7739,
+   "platforms": [
+    "whatsapp"
+   ]
+  },
+  {
+   "id": "My short sis",
+   "label": "My short sis",
+   "size": 39.29580965074669,
+   "color": "#ffa94d",
+   "tier": 2,
+   "desc": "like a sister",
+   "messages": 9127,
+   "platforms": [
+    "whatsapp"
+   ]
+  },
+  {
+   "id": "Ruby",
+   "label": "Ruby",
+   "size": 42.81346114533552,
+   "color": "#ff5c8a",
+   "tier": 1,
+   "desc": "best friend (all 3 platforms)",
+   "messages": 11631,
+   "platforms": [
+    "whatsapp",
+    "instagram",
+    "snapchat"
+   ]
+  },
+  {
+   "id": "Jasmine",
+   "label": "Jasmine",
+   "size": 36.58637419218961,
+   "color": "#74c0fc",
+   "tier": 3,
+   "desc": "friend",
+   "messages": 7405,
+   "platforms": [
+    "whatsapp"
+   ]
+  },
+  {
+   "id": "Shada (uni)",
+   "label": "Shada (uni)",
+   "size": 20.703740692415895,
+   "color": "#b197fc",
+   "tier": 4,
+   "desc": "uni friend",
+   "messages": 928,
+   "platforms": [
+    "whatsapp"
+   ]
+  },
+  {
+   "id": "Ahmed",
+   "label": "Ahmed",
+   "size": 25.60372097956276,
+   "color": "#74c0fc",
+   "tier": 3,
+   "desc": "friend",
+   "messages": 2267,
+   "platforms": [
+    "whatsapp",
+    "instagram"
+   ]
+  },
+  {
+   "id": "Rehab (uni)",
+   "label": "Rehab (uni)",
+   "size": 19.28991475552747,
+   "color": "#b197fc",
+   "tier": 4,
+   "desc": "uni friend",
+   "messages": 651,
+   "platforms": [
+    "whatsapp"
+   ]
+  },
+  {
+   "id": "Nadia",
+   "label": "Nadia",
+   "size": 25.005493344846904,
+   "color": "#74c0fc",
+   "tier": 3,
+   "desc": "work",
+   "messages": 2072,
+   "platforms": [
+    "whatsapp",
+    "instagram"
+   ]
+  },
+  {
+   "id": "Hala Medhat",
+   "label": "Hala Medhat",
+   "size": 32.25954045855524,
+   "color": "#ffa94d",
+   "tier": 2,
+   "desc": "close",
+   "messages": 5028,
+   "platforms": [
+    "whatsapp",
+    "instagram"
+   ]
+  },
+  {
+   "id": "MARYAM OSAMA",
+   "label": "MARYAM OSAMA",
+   "size": 47.82952835359149,
+   "color": "#ffa94d",
+   "tier": 2,
+   "desc": "close",
+   "messages": 15726,
+   "platforms": [
+    "whatsapp"
+   ]
+  },
+  {
+   "id": "My little sis",
+   "label": "My little sis",
+   "size": 58.93808340217341,
+   "color": "#ff5c8a",
+   "tier": 1,
+   "desc": "chosen sister",
+   "messages": 26989,
+   "platforms": [
+    "whatsapp"
+   ]
+  },
+  {
+   "id": "Kitty",
+   "label": "Kitty",
+   "size": 44.119674179352366,
+   "color": "#ffa94d",
+   "tier": 2,
+   "desc": "close",
+   "messages": 12638,
+   "platforms": [
+    "whatsapp",
+    "instagram"
+   ]
+  },
+  {
+   "id": "Rawan",
+   "label": "Rawan",
+   "size": 58.67648098937001,
+   "color": "#ff5c8a",
+   "tier": 1,
+   "desc": "\"my Cocaïne\" — very close/romantic",
+   "messages": 26689,
+   "platforms": [
+    "whatsapp",
+    "instagram"
+   ]
+  },
+  {
+   "id": "Rosé",
+   "label": "Rosé",
+   "size": 82.35014468459079,
+   "color": "#ff5c8a",
+   "tier": 1,
+   "desc": "romantic/closest",
+   "messages": 60627,
+   "platforms": [
+    "instagram"
+   ]
+  },
+  {
+   "id": "Menna Abbas",
+   "label": "Menna Abbas",
+   "size": 17.931582712007625,
+   "color": "#74c0fc",
+   "tier": 3,
+   "desc": "friend",
+   "messages": 431,
+   "platforms": [
+    "instagram"
+   ]
+  },
+  {
+   "id": "Balqis",
+   "label": "Balqis",
+   "size": 31.916150763249654,
+   "color": "#74c0fc",
+   "tier": 3,
+   "desc": "friend",
+   "messages": 4859,
+   "platforms": [
+    "instagram",
+    "snapchat"
+   ]
+  },
+  {
+   "id": "Father",
+   "label": "Father",
+   "size": 14.1570955529345,
+   "color": "#ff5c8a",
+   "tier": 1,
+   "desc": "father",
+   "messages": 57,
+   "platforms": [
+    "instagram"
+   ]
+  },
+  {
+   "id": "Amy",
+   "label": "Amy",
+   "size": 34.66706682319852,
+   "color": "#74c0fc",
+   "tier": 3,
+   "desc": "ex (Kai has moved on)",
+   "messages": 6294,
+   "platforms": [
+    "snapchat"
+   ]
+  }
+ ],
+ "edges": [
+  {
+   "from": "Kai",
+   "to": "Asmaa Ali",
+   "w": 2523
+  },
+  {
+   "from": "Kai",
+   "to": "Sasuke",
+   "w": 6766
+  },
+  {
+   "from": "Kai",
+   "to": "ElTohamy",
+   "w": 3035
+  },
+  {
+   "from": "Kai",
+   "to": "Bosey",
+   "w": 7739
+  },
+  {
+   "from": "Kai",
+   "to": "My short sis",
+   "w": 9127
+  },
+  {
+   "from": "Kai",
+   "to": "Ruby",
+   "w": 11631
+  },
+  {
+   "from": "Kai",
+   "to": "Jasmine",
+   "w": 7405
+  },
+  {
+   "from": "Kai",
+   "to": "Shada (uni)",
+   "w": 928
+  },
+  {
+   "from": "Kai",
+   "to": "Ahmed",
+   "w": 2267
+  },
+  {
+   "from": "Kai",
+   "to": "Rehab (uni)",
+   "w": 651
+  },
+  {
+   "from": "Kai",
+   "to": "Nadia",
+   "w": 2072
+  },
+  {
+   "from": "Kai",
+   "to": "Hala Medhat",
+   "w": 5028
+  },
+  {
+   "from": "Kai",
+   "to": "MARYAM OSAMA",
+   "w": 15726
+  },
+  {
+   "from": "Kai",
+   "to": "My little sis",
+   "w": 26989
+  },
+  {
+   "from": "Kai",
+   "to": "Kitty",
+   "w": 12638
+  },
+  {
+   "from": "Kai",
+   "to": "Rawan",
+   "w": 26689
+  },
+  {
+   "from": "Kai",
+   "to": "Rosé",
+   "w": 60627
+  },
+  {
+   "from": "Kai",
+   "to": "Menna Abbas",
+   "w": 431
+  },
+  {
+   "from": "Kai",
+   "to": "Balqis",
+   "w": 4859
+  },
+  {
+   "from": "Kai",
+   "to": "Father",
+   "w": 57
+  },
+  {
+   "from": "Kai",
+   "to": "Amy",
+   "w": 6294
+  }
+ ]
+}

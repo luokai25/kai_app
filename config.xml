@@ -1,0 +1,19 @@
+<?xml version='1.0' encoding='utf-8'?>
+<widget id="com.kai.app" version="1.0.0" xmlns="http://www.w3.org/ns/widgets" xmlns:cdv="http://cordova.apache.org/ns/1.0">
+    <name>KAI</name>
+    <description>An AI built from your own words.</description>
+    <author email="kai@memory.ai">Kai</author>
+    <content src="index.html" />
+    <allow-intent href="http://*/*" />
+    <allow-intent href="https://*/*" />
+    <allow-navigation href="*" />
+    <access origin="*" />
+    <preference name="DisallowOverscroll" value="true" />
+    <preference name="BackgroundColor" value="0xff0f0e0c" />
+    <preference name="Orientation" value="portrait" />
+    <preference name="android-minSdkVersion" value="22" />
+    <preference name="AndroidInsecureFileModeEnabled" value="true" />
+    <platform name="android">
+        <preference name="AndroidWindowSplashScreenBackground" value="#0f0e0c" />
+    </platform>
+</widget>
