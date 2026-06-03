@@ -91,6 +91,23 @@ window.KaiWorkspace = (function(){
         return { ok:true, result: 'remembered ('+SELFNOTES.length+' total)' };
       }
     },
+    knowledge_lookup: {
+      desc: "Search KAI's assistant knowledge base (6,953 curated Q&A from HuggingFace: how-to, brainstorm, coding, writing, summarizing). Use when Kai asks for general help, not memory-specific.",
+      params: {query: "what to look up", category: "(optional) Generation, Open QA, Brainstorm, Coding, Rewrite, Classify, Summarize"},
+      run: async ({query, category}) => {
+        if(!window.KAI_KNOWLEDGE) return { ok:false, result:'knowledge base not loaded yet' };
+        try{
+          const qs=(query||'').toLowerCase().split(/\s+/).filter(w=>w.length>2).slice(0,4);
+          if(!qs.length) return { ok:true, result:'(empty query)' };
+          const like=qs.map(w=>`(q LIKE '%${w.replace(/'/g,"")}%' OR a LIKE '%${w.replace(/'/g,"")}%')`).join(" AND ");
+          const cat = category ? ` AND cat='${category.replace(/'/g,"")}'` : '';
+          const r=window.KAI_KNOWLEDGE.exec(`SELECT cat,q,a FROM know WHERE ${like}${cat} LIMIT 3`);
+          if(!r[0]) return { ok:true, result:'(no match)' };
+          const out = r[0].values.map(v=>`[${v[0]}] Q: ${v[1].slice(0,150)}\nA: ${v[2].slice(0,400)}`).join("\n\n");
+          return { ok:true, result: out };
+        }catch(e){ return { ok:false, result:'lookup failed: '+e.message }; }
+      }
+    },
     play_song: {
       desc: "Find and play a song. Embeds a player in the chat.",
       params: {query: "song name/artist/description"},

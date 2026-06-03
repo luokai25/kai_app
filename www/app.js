@@ -48,6 +48,14 @@ async function boot(){
     }
     DB=new SQL.Database(bytes);
     KaiVoice.init(DB,PROFILE,TRAINED);
+    // Load KAI's assistant knowledge pack (6,953 HF curated Q&A)
+    try{
+      let kbytes;
+      try{ kbytes=new Uint8Array(await xhrBuffer('kai_knowledge.db')); }
+      catch(e){ const gz=new Uint8Array(await xhrBuffer('kai_knowledge.db.gz')); kbytes=pako.ungzip(gz); }
+      window.KAI_KNOWLEDGE=new SQL.Database(kbytes);
+      console.log('KAI knowledge loaded');
+    }catch(e){ console.warn('knowledge load failed',e); }
     READY=true;
     if(api.key&&api.provider) setModeLabel(api.provider);
     renderChatList();
