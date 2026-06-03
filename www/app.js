@@ -31,6 +31,9 @@ async function boot(){
   try{
     PROFILE=await xhrJSON('self_profile.json').catch(()=>({}));
     GRAPH=await xhrJSON('people_graph.json').catch(()=>({nodes:[],edges:[]}));
+    const TRAINED=await xhrJSON('trained_voice.json').catch(()=>({}));
+    const IDENTITY=await xhrJSON('identity.json').catch(()=>({}));
+    TRAINED.identity=IDENTITY;
     drawFullGraph();  // graph only needs the json, not the DB — draw it early
     let wasmBin=null;
     try{ wasmBin=await xhrBuffer('sql-wasm.wasm'); }catch(e){}
@@ -44,7 +47,7 @@ async function boot(){
       bytes=pako.ungzip(gz);
     }
     DB=new SQL.Database(bytes);
-    KaiVoice.init(DB,PROFILE);
+    KaiVoice.init(DB,PROFILE,TRAINED);
     READY=true;
     if(api.key&&api.provider) setModeLabel(api.provider);
     renderChatList();

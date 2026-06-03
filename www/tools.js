@@ -18,22 +18,42 @@ window.KaiTools = (function(){
   function songQuery(text){
     return text.replace(/^.*?\b(play|put on|listen to)\b/i,'').replace(/\b(a song|some music|for me|please)\b/ig,'').trim() || 'music';
   }
-  function music(text){
+  // Look up a real, embeddable video id via YouTube/Piped search; fall back to device handoff.
+  async function music(text){
     const q=songQuery(text);
-    const yt=`https://www.youtube.com/embed?listType=search&list=${encodeURIComponent(q)}&autoplay=1`;
-    const open=`https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`;
+    let vid=null, title=q;
+    // try Piped (open YouTube API, embeddable results) — works without a key
+    const apis=["https://pipedapi.kavin.rocks","https://piped-api.lunar.icu","https://pipedapi.adminforge.de"];
+    for(const base of apis){
+      try{
+        const r=await fetch(base+"/search?q="+encodeURIComponent(q+" official audio")+"&filter=videos");
+        if(!r.ok) continue;
+        const d=await r.json();
+        const items=d.items||d; 
+        if(items&&items.length){
+          const it=items.find(x=>x.url||x.videoId)||items[0];
+          vid=(it.url&&it.url.split("v=")[1])||it.videoId||null;
+          if(it.title) title=it.title;
+          if(vid) break;
+        }
+      }catch(e){ continue; }
+    }
+    const openYT = vid ? ("https://www.youtube.com/watch?v="+vid) : ("https://www.youtube.com/results?search_query="+encodeURIComponent(q));
+    const embed = vid ? ("https://www.youtube-nocookie.com/embed/"+vid+"?autoplay=1&playsinline=1") : null;
+    const player = embed
+      ? `<iframe class="tm-frame" src="${embed}" allow="autoplay; encrypted-media" allowfullscreen referrerpolicy="origin"></iframe>`
+      : `<div class="tm-label" style="opacity:.8">Couldn\'t embed this one — tap below to play it.</div>`;
     return {
-      type:'music',
-      title:q,
+      type:'music', title,
       html:`<div class="tool-music">
-        <div class="tm-label">▶ Playing: <b>${esc(q)}</b></div>
-        <iframe class="tm-frame" src="${yt}" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+        <div class="tm-label">\u266a <b>${esc(title)}</b></div>
+        ${player}
         <div class="tm-actions">
-          <a class="tm-btn" href="${open}" target="_blank" rel="noopener">Open in YouTube</a>
-          <a class="tm-btn" href="https://open.spotify.com/search/${encodeURIComponent(q)}" target="_blank" rel="noopener">Open in Spotify</a>
+          <a class="tm-btn" href="${openYT}" target="_blank" rel="noopener">Play in YouTube</a>
+          <a class="tm-btn" href="https://open.spotify.com/search/${encodeURIComponent(q)}" target="_blank" rel="noopener">Play in Spotify</a>
         </div>
       </div>`,
-      say:`Here — putting on ${q} for you. ▶`
+      say:`Putting on ${title} \u266a`
     };
   }
 
@@ -82,7 +102,7 @@ window.KaiTools = (function(){
 
   async function run(intent){
     switch(intent.tool){
-      case 'music': return music(intent.q);
+      case 'music': return await music(intent.q);
       case 'search': return await search(intent.q);
       case 'open': return open(intent.q);
       case 'dial': return dial(intent.q);

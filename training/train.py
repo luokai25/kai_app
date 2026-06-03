@@ -21,26 +21,50 @@ def load_corpus():
     c.close(); return rows
 
 # ---- CPU stage: lightweight semantic index (term stats per person + Kai voice n-grams) ----
+JUNK=("<media omitted>","media omitted","you sent","sent an","an attachment","attachment.","missed voice","missed video","this message was deleted","null","http","www.","added you","changed the","reacted","liked a message","to your message")
+def is_junk(t):
+    tl=t.lower()
+    return any(j in tl for j in JUNK)
+
 def build_cpu(rows):
     from collections import Counter, defaultdict
     log(f"corpus: {len(rows):,} messages")
-    # Kai's signature phrases (bigrams) for voice grounding
-    kai=[t for p,k,t in rows if k==1]
+    kai=[t for p,k,t in rows if k==1 and not is_junk(t)]
+    # real conversational openers (how Kai starts messages) — for natural replies
+    openers=Counter()
+    for t in kai:
+        w=t.strip().split()
+        if 1<=len(w)<=6 and t[0].isalpha():
+            openers[t.strip().lower()]+=1
+    common_openers=[o for o,n in openers.most_common(60) if n>=5 and len(o)>2]
+    # signature short phrases (his characteristic expressions)
     big=Counter()
     for t in kai:
-        w=t.lower().split()
-        for i in range(len(w)-1): big[w[i]+" "+w[i+1]]+=1
-    sig=[p for p,_ in big.most_common(120) if len(p)>4]
-    # per-person top terms (who they are by what they say)
+        w=[x for x in t.lower().split() if x.isalpha()]
+        for i in range(len(w)-1):
+            ph=w[i]+" "+w[i+1]
+            if len(ph)>5: big[ph]+=1
+    sig=[p for p,n in big.most_common(150) if n>=8][:80]
+    # short, reusable real lines per intent (greetings, affection, questions, agreement)
+    buckets={"greet":[],"affection":[],"agree":[],"ask":[],"short":[]}
+    for t in kai:
+        tl=t.lower().strip(); 
+        if is_junk(t) or len(t)>120 or len(t)<2: continue
+        if any(g in tl for g in ("hi","hey","hello","good morning","yo ","wsp","ezayek","sa7")): buckets["greet"].append(t)
+        elif any(a in tl for a in ("love you","habibi","miss you","احبك","حبيبi","cutie","my ")): buckets["affection"].append(t)
+        elif tl.endswith("?") or tl.startswith(("what","why","how","when","where","do you","are you")): buckets["ask"].append(t)
+        elif tl in ("yeah","yes","sure","ok","okay","true","exactly","fr","facts","agreed","نعم","تمام","ايوه"): buckets["agree"].append(t)
+        elif len(t)<40: buckets["short"].append(t)
+    buckets={k:list(dict.fromkeys(v))[:120] for k,v in buckets.items()}  # dedup, cap
     perperson=defaultdict(Counter)
     for p,k,t in rows:
-        if k==0 and p:
+        if k==0 and p and not is_junk(t):
             for w in t.lower().split():
-                if len(w)>3: perperson[p][w]+=1
+                if len(w)>3 and w.isalpha(): perperson[p][w]+=1
     profiles={p:[w for w,_ in c.most_common(25)] for p,c in perperson.items()}
-    out={"signature_phrases":sig,"person_terms":profiles,"trained_messages":len(rows)}
+    out={"signature_phrases":sig,"openers":common_openers,"lines":buckets,"person_terms":profiles,"trained_messages":len(kai)}
     json.dump(out,open(os.path.join(OUT,"trained_voice.json"),"w"),ensure_ascii=False,indent=1)
-    log("wrote trained_voice.json (signatures + per-person term profiles)")
+    log(f"wrote trained_voice.json — {len(sig)} signatures, {len(common_openers)} openers, lines:{ {k:len(v) for k,v in buckets.items()} }")
 
 # ---- math/identity packs (baked knowledge, no GPU) ----
 def build_packs():
