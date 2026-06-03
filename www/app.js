@@ -145,10 +145,27 @@ async function send(){
     if(!READY){
       reply="(still loading your memories — one moment, then ask me again)";
     } else if(api.key&&api.provider){
-      const sys=KaiVoice.buildSystem(person)+(MEMORY.length?('\n\nThings you remember about Kai across conversations:\n- '+MEMORY.slice(-20).join('\n- ')):'');
-      const ctx=KaiVoice.buildContext(text,person);
-      const msgs=[{role:'user',content:'Relevant memories from my history:\n'+ctx+'\n\n---\nNow respond as KAI to: '+text}];
-      reply=await Providers.chat(api.provider,api.key,msgs,sys);
+      const selfNotes=KaiWorkspace.getSelfNotes();
+      let sys=KaiVoice.buildSystem(person)
+        +(MEMORY.length?('\n\nLong-term memory:\n- '+MEMORY.slice(-15).join('\n- ')):'')
+        +(selfNotes.length?('\n\nWhat you remember about Kai:\n- '+selfNotes.slice(-15).join('\n- ')):'')
+        +'\n\nYou have a workspace inside you — tools you can call to act, not just talk. Use them when they help. After tool results, answer Kai naturally in his voice. Stay brief.';
+      // chat history (recent turns)
+      const hist=current.msgs.filter(m=>!m._t).slice(-8).map(m=>({role:m.role==='me'?'user':'assistant',content:m.text||''}));
+      hist.push({role:'user',content:text});
+      const out=await Providers.agenticChat(api.provider,api.key,hist,sys,KaiWorkspace.TOOLS,(n,a)=>KaiWorkspace.exec(n,a));
+      reply=out.text;
+      // attach inline html (e.g. music player) if a tool returned it
+      if(out.extra && out.extra.html){
+        // remove thinking, push the tool html message, then reply
+        const i=current.msgs.indexOf(thinking); if(i>=0) current.msgs.splice(i,1);
+        current.msgs.push({role:'kai', text: '(used '+(out.used.join(', ')||'none')+')', html: out.extra.html});
+        current.msgs.push({role:'kai', text: reply||""});
+        save(); renderMessages(); renderChatList(); drawVault();
+        try{ KaiSpeech.speak(reply); }catch(e){}
+        return;
+      }
+      if(out.used && out.used.length) reply = reply + '\n\n_used: '+out.used.join(', ')+'_';
     } else {
       reply=KaiVoice.localReply(text,person);
     }
@@ -282,7 +299,7 @@ function setModeLabel(prov){
 }
 
 // ---------- panels ----------
-function closeAll(){['scrimL','panelL','scrimR','panelR','scrimApi','panelApi','scrimG','panelG'].forEach(id=>$(id).classList.remove('on'));}
+function closeAll(){['scrimL','panelL','scrimR','panelR','scrimApi','panelApi','scrimG','panelG','scrimW','panelW'].forEach(id=>$(id).classList.remove('on'));}
 function openP(scrim,panel){closeAll();$(scrim).classList.add('on');$(panel).classList.add('on');}
 
 // ---------- utils ----------
@@ -299,6 +316,22 @@ window.addEventListener('DOMContentLoaded',()=>{
   $('openApi').onclick=()=>{openP('scrimApi','panelApi');
     $('apiStatus').innerHTML=api.provider?`Currently: <b class="ok">${api.provider}</b>`:'Currently: <b class="ok">Local mode</b>';};
   $('apiBack').onclick=closeAll;$('apiSave').onclick=saveApi;$('apiClear').onclick=clearApi;
+  $('openWorkspace').onclick=()=>{
+    openP('scrimW','panelW');
+    // populate
+    const sn=KaiWorkspace.getSelfNotes();
+    $('wSelfNotes').innerHTML = sn.length ? sn.map(n=>'• '+esc(n)).join('<br>') : '<i style="color:var(--dim)">Nothing yet — KAI will note things as you talk.</i>';
+    const log=KaiWorkspace.getRecentToolLog(15);
+    $('wToolLog').innerHTML = log.length ? log.map(l=>{
+      const d=new Date(l.t).toLocaleTimeString();
+      return `[${d}] <b style="color:${l.ok?'#8ce99a':'#ff8787'}">${esc(l.tool)}</b> → ${esc(l.output.slice(0,80))}`;
+    }).join('<br>') : '<i style="color:var(--dim)">No actions yet — give KAI something to do.</i>';
+    const tools = Object.entries(KaiWorkspace.TOOLS).map(([n,t])=>`<b style="color:var(--gold)">${n}</b> — ${esc(t.desc)}`).join('<br>');
+    $('wTools').innerHTML = tools;
+    $('wScratch').innerHTML='<i style="color:var(--dim)">Slots appear here as KAI uses them.</i>';
+  };
+  $('wClose').onclick=closeAll;
+  $('scrimW').onclick=closeAll;
   $('openAbout').onclick=()=>{closeAll();alert('KAI — an AI built from Luo Kai\'s own messages across WhatsApp, Instagram, and Snapchat. His reflection and companion. Local-first; optional API for sharper wording, but memory is always yours.');};
   $('send').onclick=send;
   $('mic').onclick=()=>{
