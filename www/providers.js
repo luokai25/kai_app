@@ -5,10 +5,10 @@ window.Providers = (function(){
     anthropic: {
       test: k => /^sk-ant-/.test(k),
       url: "https://api.anthropic.com/v1/messages",
-      model: "claude-3-5-haiku-20241022",
+      model: "claude-haiku-4-5",
       build: (k,msgs,sys) => ({
         headers:{"Content-Type":"application/json","x-api-key":k,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
-        body: JSON.stringify({model:"claude-3-5-haiku-20241022",max_tokens:512,system:sys,messages:msgs})
+        body: JSON.stringify({model:"claude-haiku-4-5",max_tokens:512,system:sys,messages:msgs})
       }),
       parse: d => d.content?.map(b=>b.text||"").join("") || ""
     },
@@ -54,12 +54,20 @@ window.Providers = (function(){
 
   // verify the key actually works (also disambiguates sk- overlaps)
   async function verify(name,key){
-    const d=DEFS[name]; if(!d) return false;
+    const d=DEFS[name]; if(!d) return {ok:false,reason:'unknown provider'};
     try{
-      const {headers,body}=d.build(key,[{role:"user",content:"hi"}],"Reply with: ok");
-      const r=await fetch(d.url,{method:"POST",headers,body});
-      return r.ok;
-    }catch(e){ return false; }
+      const {headers,body}=d.build(key,[{role:'user',content:'hi'}],'Reply with ok');
+      const r=await fetch(d.url,{method:'POST',headers,body});
+      if(r.ok) return {ok:true};
+      if(r.status===401||r.status===403){
+        return {ok:false,reason:'key rejected ('+r.status+')'};
+      }
+      // 400/429/5xx etc -> key is likely fine, just this probe failed
+      return {ok:true,soft:true,reason:'accepted (provider returned '+r.status+' on probe)'};
+    }catch(e){
+      // network / CORS failure in WebView — cannot confirm, but format was valid.
+      return {ok:true,soft:true,reason:'format valid; connection will be confirmed on first message'};
+    }
   }
 
   async function chat(name,key,msgs,sys){

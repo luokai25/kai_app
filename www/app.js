@@ -16,21 +16,37 @@ function load(){ try{
 }catch(e){chats=[];} }
 
 // ---------- boot ----------
+let READY=false, BOOT_ERR=null;
 async function boot(){
   load();
-  // load profile + graph
-  PROFILE=await fetch('self_profile.json').then(r=>r.json()).catch(()=>({}));
-  GRAPH=await fetch('people_graph.json').then(r=>r.json()).catch(()=>({nodes:[],edges:[]}));
-  // load sql.js + the gzipped corpus
-  const SQL=await initSqlJs({locateFile:()=>'sql-wasm.wasm'});
-  const gz=new Uint8Array(await fetch('app_corpus.db.gz').then(r=>r.arrayBuffer()));
-  const raw=pako.ungzip(gz);
-  DB=new SQL.Database(raw);
-  KaiVoice.init(DB,PROFILE);
-  if(api.key&&api.provider){ setModeLabel(api.provider); }
   renderChatList();
-  if(!chats.length) newChat(); else openChat(chats[0].id);
-  drawFullGraph();
+  if(!chats.length) newChat(); else current=chats[0];
+  renderMessages();
+  try{
+    PROFILE=await fetch('self_profile.json').then(r=>r.json()).catch(()=>({}));
+    GRAPH=await fetch('people_graph.json').then(r=>r.json()).catch(()=>({nodes:[],edges:[]}));
+    const SQL=await initSqlJs({locateFile:()=>'sql-wasm.wasm'});
+    const gz=new Uint8Array(await fetch('app_corpus.db.gz').then(r=>r.arrayBuffer()));
+    const raw=pako.ungzip(gz);
+    DB=new SQL.Database(raw);
+    KaiVoice.init(DB,PROFILE);
+    READY=true;
+    if(api.key&&api.provider) setModeLabel(api.provider);
+    drawFullGraph();
+    renderChatList();
+    setStatus(api.provider?api.provider:'local');
+  }catch(e){
+    BOOT_ERR=e;
+    setStatus('error');
+    console.error('boot failed',e);
+  }
+}
+function setStatus(mode){
+  const el=$('modepill');
+  if(mode==='error'){ el.innerHTML='<b style="color:#ff8787">memory failed to load — tap to retry</b>'; el.onclick=()=>{el.onclick=null;boot();}; return; }
+  el.innerHTML = mode==='local'
+    ? 'brain: <b>local</b> · memory: your 527k messages'
+    : 'brain: <b>'+mode+'</b> · memory: your 527k messages (local)';
 }
 
 // ---------- chats ----------
@@ -71,35 +87,40 @@ function renderMessages(){
 
 // ---------- sending ----------
 async function send(){
-  const inp=$('input'); const text=inp.value.trim(); if(!text||!current) return;
+  const inp=$('input'); const text=(inp.value||'').trim();
+  if(!text) return;
+  if(!current){ newChat(); }
   inp.value=''; inp.style.height='44px';
   current.msgs.push({role:'me',text});
   if(current.title==='New conversation') current.title=text.slice(0,30);
-  renderMessages(); renderChatList();
+  renderMessages(); renderChatList(); save();
 
-  // detect which person this is about, grow the vault
   const person=detectPerson(text);
   if(person) current.vault.add(person);
 
-  // thinking placeholder
-  current.msgs.push({role:'kai',text:'…'}); renderMessages();
+  // thinking placeholder (use a stable marker, not a unicode char)
+  const thinking={role:'kai',text:'…',_t:1}; current.msgs.push(thinking); renderMessages();
+
   let reply;
   try{
-    if(api.key&&api.provider){
+    if(!READY){
+      reply="(still loading your memories — one moment, then ask me again)";
+    } else if(api.key&&api.provider){
       const sys=KaiVoice.buildSystem(person);
       const ctx=KaiVoice.buildContext(text,person);
-      const hist=current.msgs.filter(m=>m.text!=='…').slice(-6).map(m=>({role:m.role==='me'?'user':'assistant',content:m.text}));
-      // inject memory context as a user-side note before the latest turn
-      const msgs=[{role:'user',content:`Relevant memories from my history:\n${ctx}\n\n---\nNow respond as KAI to: ${text}`}];
+      const msgs=[{role:'user',content:'Relevant memories from my history:\n'+ctx+'\n\n---\nNow respond as KAI to: '+text}];
       reply=await Providers.chat(api.provider,api.key,msgs,sys);
-    }else{
+    } else {
       reply=KaiVoice.localReply(text,person);
     }
-  }catch(e){ reply="(couldn't reach the API — staying local) "+KaiVoice.localReply(text,person); }
-  current.msgs.pop(); // remove thinking
+  }catch(e){
+    console.error('send error',e);
+    reply="(couldn't reach the API — staying local)\n"+(READY?KaiVoice.localReply(text,person):"still loading.");
+  }
+  // remove thinking marker
+  const i=current.msgs.indexOf(thinking); if(i>=0) current.msgs.splice(i,1);
   current.msgs.push({role:'kai',text:reply||"i'm here."});
-  // grow vault from recalled people
-  KaiVoice.recall(text,null,4).forEach(m=>{ if(m.person&&m.person!=='Kai') current.vault.add(m.person); });
+  if(READY){ try{ KaiVoice.recall(text,null,4).forEach(m=>{ if(m.person&&m.person!=='Kai') current.vault.add(m.person); }); }catch(e){} }
   save(); renderMessages(); renderChatList(); drawVault();
 }
 
@@ -193,15 +214,23 @@ function drawVault(){
 
 // ---------- API ----------
 async function saveApi(){
-  const key=$('apiKey').value.trim();
-  if(!key){ $('apiStatus').innerHTML='Paste a key first, or use local only.';return;}
+  const key=($('apiKey').value||'').trim();
+  if(!key){ $('apiStatus').innerHTML='Paste a key first, or use local only.'; return; }
   const prov=Providers.detect(key);
-  if(!prov){ $('apiStatus').innerHTML='<b class="bad">Unrecognized key format.</b>';return;}
-  $('apiStatus').innerHTML=`Detected <b>${prov}</b> — verifying…`;
-  const ok=await Providers.verify(prov,key);
-  if(ok){ api={provider:prov,key}; save(); setModeLabel(prov);
-    $('apiStatus').innerHTML=`<b class="ok">Connected to ${prov}</b> · memory stays local`;}
-  else { $('apiStatus').innerHTML=`<b class="bad">${prov} key didn't verify.</b> Check it, or use local.`;}
+  if(!prov){ $('apiStatus').innerHTML='<b class="bad">Unrecognized key format.</b> Expected sk-ant- / gsk_ / sk- / 32-char Mistral.'; return; }
+  $('apiStatus').innerHTML='Detected <b>'+prov+'</b> — checking…';
+  let res;
+  try{ res=await Providers.verify(prov,key); }catch(e){ res={ok:true,soft:true,reason:'will confirm on first message'}; }
+  if(res.ok){
+    api={provider:prov,key}; save(); setModeLabel(prov); setStatus(prov);
+    if(res.soft){
+      $('apiStatus').innerHTML='<b class="ok">'+prov+' connected</b> ('+res.reason+'). Memory stays local.';
+    } else {
+      $('apiStatus').innerHTML='<b class="ok">'+prov+' connected & verified.</b> Memory stays local.';
+    }
+  } else {
+    $('apiStatus').innerHTML='<b class="bad">'+prov+': '+res.reason+'</b> — check the key, or use local.';
+  }
 }
 function clearApi(){ api={provider:null,key:null}; save(); setModeLabel(null);
   $('apiStatus').innerHTML='Currently: <b class="ok">Local mode</b>'; $('apiKey').value='';}
