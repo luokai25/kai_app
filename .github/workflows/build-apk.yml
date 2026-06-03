@@ -44,6 +44,16 @@ jobs:
           echo "/opt/gradle-8.7/bin" >> $GITHUB_PATH
           echo "GRADLE_HOME=/opt/gradle-8.7" >> $GITHUB_ENV
 
+      - name: Train KAI (CPU stage — voice + identity packs)
+        run: |
+          set -e
+          # the DB ships gzipped in repo; gunzip for training
+          if [ -f www/app_corpus.db.gz ]; then gunzip -kf www/app_corpus.db.gz; fi
+          python3 training/train.py || echo "training stage skipped"
+        env:
+          KAI_DB: www/app_corpus.db
+          KAI_OUT: www
+
       - name: Prepare and build APK
         run: |
           set -e
@@ -51,10 +61,15 @@ jobs:
           rm -rf build/www
           cp -r www build/www
           cp config.xml build/config.xml
-          find build/www -name "*.gz" -exec gunzip -f {} \;
+          # training already produced raw www/app_corpus.db; drop any .gz so we ship raw only
+          find build/www -name "*.gz" -delete
+          ls -la build/www | grep -E "app_corpus|\.db"
           ls -la build/www
           cd build
           cordova platform add android@12
+          cordova plugin add cordova-plugin-android-permissions || true
+          cordova plugin add cordova-plugin-file || true
+          cordova plugin add cordova-plugin-inappbrowser || true
           GRADLE_FILE=$(find platforms/android -name "build.gradle" -path "*app*" | head -1)
           if [ -n "$GRADLE_FILE" ]; then
             echo "android { androidResources { noCompress 'db','wasm' } }" >> "$GRADLE_FILE"

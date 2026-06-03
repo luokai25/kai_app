@@ -2,7 +2,10 @@
 const $=id=>document.getElementById(id);
 let DB=null, PROFILE=null, GRAPH=null;
 let chats=[], current=null;            // chats: {id,title,msgs:[{role,text}],vault:Set(person)}
-let api={provider:null,key:null};      // active API (null = local)
+let api={provider:null,key:null};
+let MEMORY=[];  // persistent cross-chat memory (facts KAI keeps)
+function loadMem(){ try{ MEMORY=JSON.parse(localStorage.getItem('kai_memory')||'[]'); }catch(e){ MEMORY=[]; } }
+function rememberFact(f){ if(f&&!MEMORY.includes(f)){ MEMORY.push(f); if(MEMORY.length>200)MEMORY.shift(); try{localStorage.setItem('kai_memory',JSON.stringify(MEMORY));}catch(e){} } }      // active API (null = local)
 
 // ---------- storage (in-memory + localStorage for chats/api) ----------
 function save(){ try{
@@ -18,7 +21,7 @@ function load(){ try{
 // ---------- boot ----------
 let READY=false, BOOT_ERR=null;
 async function boot(){
-  load();
+  load(); loadMem();
   renderChatList();
   if(!chats.length) newChat(); else current=chats[0];
   renderMessages();
@@ -26,9 +29,16 @@ async function boot(){
     PROFILE=await fetch('self_profile.json').then(r=>r.json()).catch(()=>({}));
     GRAPH=await fetch('people_graph.json').then(r=>r.json()).catch(()=>({nodes:[],edges:[]}));
     const SQL=await initSqlJs({locateFile:()=>'sql-wasm.wasm'});
-    const gz=new Uint8Array(await fetch('app_corpus.db.gz').then(r=>r.arrayBuffer()));
-    const raw=pako.ungzip(gz);
-    DB=new SQL.Database(raw);
+    // APK ships the raw .db (CI gunzips it). Open directly — no JS unzip step.
+    let bytes;
+    try{
+      bytes=new Uint8Array(await fetch('app_corpus.db').then(r=>{if(!r.ok)throw 0;return r.arrayBuffer()}));
+    }catch(e){
+      // fallback if a build ever ships the gz
+      const gz=new Uint8Array(await fetch('app_corpus.db.gz').then(r=>r.arrayBuffer()));
+      bytes=pako.ungzip(gz);
+    }
+    DB=new SQL.Database(bytes);
     KaiVoice.init(DB,PROFILE);
     READY=true;
     if(api.key&&api.provider) setModeLabel(api.provider);
@@ -79,7 +89,11 @@ function renderMessages(){
   current.msgs.forEach(m=>{
     const d=document.createElement('div');
     d.className='msg '+(m.role==='me'?'me':'kai');
-    d.innerHTML=`<div class="who">${m.role==='me'?'You':'Kai'}</div>${esc(m.text)}`;
+    let inner='<div class="who">'+(m.role==='me'?'You':'Kai')+'</div>';
+    if(m.text) inner+=esc(m.text).replace(/\n/g,'<br>');
+    if(m.html) inner+=m.html;
+    if(m.url) inner+='<div style="margin-top:8px"><a class="tm-btn" href="'+m.url+'" target="_blank" rel="noopener">Open ↗</a></div>';
+    d.innerHTML=inner;
     el.appendChild(d);
   });
   el.scrollTop=el.scrollHeight;
@@ -103,10 +117,26 @@ async function send(){
 
   let reply;
   try{
+    // --- tools first: if this is an action, do it ---
+    const intent=KaiTools.detect(text);
+    if(intent){
+      const res=await KaiTools.run(intent);
+      if(res){
+        const i=current.msgs.indexOf(thinking); if(i>=0) current.msgs.splice(i,1);
+        if(res.html){ current.msgs.push({role:'kai',text:res.say||'',html:res.html}); }
+        else {
+          let body=(res.say||'')+(res.extra||'');
+          if(res.url) current.msgs.push({role:'kai',text:body,url:res.url});
+          else current.msgs.push({role:'kai',text:body});
+        }
+        save(); renderMessages(); renderChatList(); drawVault();
+        return;
+      }
+    }
     if(!READY){
       reply="(still loading your memories — one moment, then ask me again)";
     } else if(api.key&&api.provider){
-      const sys=KaiVoice.buildSystem(person);
+      const sys=KaiVoice.buildSystem(person)+(MEMORY.length?('\n\nThings you remember about Kai across conversations:\n- '+MEMORY.slice(-20).join('\n- ')):'');
       const ctx=KaiVoice.buildContext(text,person);
       const msgs=[{role:'user',content:'Relevant memories from my history:\n'+ctx+'\n\n---\nNow respond as KAI to: '+text}];
       reply=await Providers.chat(api.provider,api.key,msgs,sys);
@@ -122,6 +152,7 @@ async function send(){
   current.msgs.push({role:'kai',text:reply||"i'm here."});
   if(READY){ try{ KaiVoice.recall(text,null,4).forEach(m=>{ if(m.person&&m.person!=='Kai') current.vault.add(m.person); }); }catch(e){} }
   save(); renderMessages(); renderChatList(); drawVault();
+  try{ KaiSpeech.speak(reply); }catch(e){}
 }
 
 function detectPerson(text){
@@ -259,6 +290,16 @@ window.addEventListener('DOMContentLoaded',()=>{
   $('apiBack').onclick=closeAll;$('apiSave').onclick=saveApi;$('apiClear').onclick=clearApi;
   $('openAbout').onclick=()=>{closeAll();alert('KAI — an AI built from Luo Kai\'s own messages across WhatsApp, Instagram, and Snapchat. His reflection and companion. Local-first; optional API for sharper wording, but memory is always yours.');};
   $('send').onclick=send;
+  $('mic').onclick=()=>{
+    if(!KaiSpeech.available()){ alert('Voice input needs mic permission / a newer Android WebView.'); return; }
+    $('mic').textContent='●';
+    KaiSpeech.listen((text,err)=>{
+      $('mic').textContent='🎤';
+      if(err){ return; }
+      if(text){ $('input').value=text; send(); }
+    });
+  };
+  $('toggleVoice').onclick=()=>{ const on=KaiSpeech.toggleVoiceOut(); $('voiceState').textContent=on?'on':'off'; };
   $('input').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send();}});
   $('input').addEventListener('input',function(){this.style.height='44px';this.style.height=Math.min(120,this.scrollHeight)+'px';});
   boot();
