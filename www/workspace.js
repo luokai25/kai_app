@@ -111,38 +111,96 @@ window.KaiWorkspace = (function(){
         return { ok:true, result: '# '+sk.name+'\n'+sk.description+'\n\n'+sk.body.slice(0,3500) };
       }
     },
-    knowledge_lookup: {
-      desc: "Search KAI's curated knowledge (28k entries: practical assist, world facts, math reasoning). Use for help when memory isn't enough.",
-      params: {query: "what to look up", pillar: "(optional) assist | world | reason"},
-      run: async ({query, pillar}) => {
-        if(!window.KAI_KNOWLEDGE) return { ok:false, result:'knowledge not loaded' };
-        try{
-          const qs=(query||'').toLowerCase().split(/\s+/).filter(w=>w.length>2).slice(0,4);
-          if(!qs.length) return { ok:true, result:'(empty query)' };
-          const like=qs.map(w=>"(q LIKE '%"+w.replace(/'/g,"")+"%' OR a LIKE '%"+w.replace(/'/g,"")+"%')").join(" AND ");
-          const pf = pillar ? " AND pillar='"+pillar.replace(/'/g,"")+"'" : '';
-          const r=window.KAI_KNOWLEDGE.exec("SELECT pillar,cat,q,a FROM know WHERE "+like+pf+" LIMIT 3");
-          if(!r[0]) return { ok:true, result:'(no match)' };
-          const out = r[0].values.map(v=>'['+v[0]+'/'+v[1]+'] Q: '+v[2].slice(0,150)+'\nA: '+v[3].slice(0,400)).join("\n\n");
-          return { ok:true, result: out };
-        }catch(e){ return { ok:false, result:'lookup failed: '+e.message }; }
-      }
-    },
+    // ---- 6 KNOWLEDGE PILLARS (410k entries) ----
     code_lookup: {
-      desc: "Search KAI's code knowledge base (120,944 real code Q&A across Python, JavaScript, SQL, Java, HTML, C++, etc.). Use for any coding task — patterns, examples, algorithms, snippets. Returns top-3 matched solutions with their language.",
-      params: {query: "what to do in code", lang: "(optional) python | javascript | sql | java | html | cpp | go | rust | general"},
-      run: async ({query, lang}) => {
-        if(!window.KAI_CODE) return { ok:false, result:'code DB not loaded' };
+      desc: "Search code knowledge (200k entries: python, javascript, sql, java, html, cpp, etc.). Top tool for any coding task.",
+      params: {query:"code task", lang:"(optional) python|javascript|sql|java|html|cpp|go|rust"},
+      run: async ({query,lang})=>{
+        if(!window.KAI_CODE) return {ok:false,result:'code DB not loaded'};
         try{
           const qs=(query||'').toLowerCase().split(/\s+/).filter(w=>w.length>2).slice(0,5);
-          if(!qs.length) return { ok:true, result:'(empty query)' };
+          if(!qs.length) return {ok:true,result:'(empty)'};
           const like=qs.map(w=>"(q LIKE '%"+w.replace(/'/g,"")+"%' OR a LIKE '%"+w.replace(/'/g,"")+"%')").join(" AND ");
-          const langF = lang ? " AND lang='"+lang.replace(/'/g,"")+"'" : '';
-          const r=window.KAI_CODE.exec("SELECT lang,q,a FROM code WHERE "+like+langF+" LIMIT 3");
-          if(!r[0]) return { ok:true, result:'(no match — try a broader query or different language)' };
-          const out = r[0].values.map(v=>'['+v[0]+']\n# '+v[1].slice(0,200)+'\n\n'+v[2].slice(0,1200)).join("\n\n---\n\n");
-          return { ok:true, result: out };
-        }catch(e){ return { ok:false, result:'lookup failed: '+e.message }; }
+          const lf = lang ? " AND lang='"+lang.replace(/'/g,"")+"'" : '';
+          const r=window.KAI_CODE.exec("SELECT lang,q,a FROM code WHERE "+like+lf+" LIMIT 3");
+          if(!r[0]) return {ok:true,result:'(no match)'};
+          return {ok:true,result:r[0].values.map(v=>'['+v[0]+']\n# '+v[1].slice(0,200)+'\n\n'+v[2].slice(0,1200)).join("\n\n---\n\n")};
+        }catch(e){return {ok:false,result:'lookup failed: '+e.message};}
+      }
+    },
+    reasoning_lookup: {
+      desc: "Search reasoning/math knowledge (40k step-by-step problems: gsm8k, metamath, open-platypus). Use for math, logic, multi-step thinking.",
+      params: {query:"problem or topic"},
+      run: async ({query})=>{
+        if(!window.KAI_REASON) return {ok:false,result:'reasoning DB not loaded'};
+        try{
+          const qs=(query||'').toLowerCase().split(/\s+/).filter(w=>w.length>2).slice(0,4);
+          if(!qs.length) return {ok:true,result:'(empty)'};
+          const like=qs.map(w=>"(q LIKE '%"+w.replace(/'/g,"")+"%' OR a LIKE '%"+w.replace(/'/g,"")+"%')").join(" AND ");
+          const r=window.KAI_REASON.exec("SELECT kind,q,a FROM reason WHERE "+like+" LIMIT 3");
+          if(!r[0]) return {ok:true,result:'(no match)'};
+          return {ok:true,result:r[0].values.map(v=>'['+v[0]+']\nQ: '+v[1].slice(0,200)+'\nA: '+v[2].slice(0,1000)).join("\n\n")};
+        }catch(e){return {ok:false,result:'lookup failed: '+e.message};}
+      }
+    },
+    writing_lookup: {
+      desc: "Search writing/communication knowledge (40k examples: drafts, summaries, brainstorms, helpful responses). Use for writing tasks.",
+      params: {query:"writing task"},
+      run: async ({query})=>{
+        if(!window.KAI_WRITE) return {ok:false,result:'writing DB not loaded'};
+        try{
+          const qs=(query||'').toLowerCase().split(/\s+/).filter(w=>w.length>2).slice(0,4);
+          if(!qs.length) return {ok:true,result:'(empty)'};
+          const like=qs.map(w=>"(q LIKE '%"+w.replace(/'/g,"")+"%' OR a LIKE '%"+w.replace(/'/g,"")+"%')").join(" AND ");
+          const r=window.KAI_WRITE.exec("SELECT kind,q,a FROM write WHERE "+like+" LIMIT 3");
+          if(!r[0]) return {ok:true,result:'(no match)'};
+          return {ok:true,result:r[0].values.map(v=>'['+v[0]+']\nQ: '+v[1].slice(0,200)+'\nA: '+v[2].slice(0,1500)).join("\n\n")};
+        }catch(e){return {ok:false,result:'lookup failed: '+e.message};}
+      }
+    },
+    research_lookup: {
+      desc: "Search research/world knowledge (80k: science, trivia, facts, wikipedia-style). Use for factual questions, learning, looking things up.",
+      params: {query:"question or topic"},
+      run: async ({query})=>{
+        if(!window.KAI_RESEARCH) return {ok:false,result:'research DB not loaded'};
+        try{
+          const qs=(query||'').toLowerCase().split(/\s+/).filter(w=>w.length>2).slice(0,4);
+          if(!qs.length) return {ok:true,result:'(empty)'};
+          const like=qs.map(w=>"(q LIKE '%"+w.replace(/'/g,"")+"%' OR a LIKE '%"+w.replace(/'/g,"")+"%')").join(" AND ");
+          const r=window.KAI_RESEARCH.exec("SELECT src,q,a FROM research WHERE "+like+" LIMIT 3");
+          if(!r[0]) return {ok:true,result:'(no match)'};
+          return {ok:true,result:r[0].values.map(v=>'['+v[0]+']\nQ: '+v[1].slice(0,200)+'\nA: '+v[2].slice(0,1500)).join("\n\n")};
+        }catch(e){return {ok:false,result:'lookup failed: '+e.message};}
+      }
+    },
+    productivity_lookup: {
+      desc: "Search productivity/planning knowledge (20k: how-to, plans, strategies, instruction following). Use for planning, life admin, getting things done.",
+      params: {query:"task or situation"},
+      run: async ({query})=>{
+        if(!window.KAI_PROD) return {ok:false,result:'productivity DB not loaded'};
+        try{
+          const qs=(query||'').toLowerCase().split(/\s+/).filter(w=>w.length>2).slice(0,4);
+          if(!qs.length) return {ok:true,result:'(empty)'};
+          const like=qs.map(w=>"(q LIKE '%"+w.replace(/'/g,"")+"%' OR a LIKE '%"+w.replace(/'/g,"")+"%')").join(" AND ");
+          const r=window.KAI_PROD.exec("SELECT src,q,a FROM prod WHERE "+like+" LIMIT 3");
+          if(!r[0]) return {ok:true,result:'(no match)'};
+          return {ok:true,result:r[0].values.map(v=>'['+v[0]+']\nQ: '+v[1].slice(0,200)+'\nA: '+v[2].slice(0,1500)).join("\n\n")};
+        }catch(e){return {ok:false,result:'lookup failed: '+e.message};}
+      }
+    },
+    chat_lookup: {
+      desc: "Search conversational knowledge (30k high-quality chat exchanges). Use for natural conversation patterns and how an assistant should respond.",
+      params: {query:"conversation topic"},
+      run: async ({query})=>{
+        if(!window.KAI_CHAT) return {ok:false,result:'chat DB not loaded'};
+        try{
+          const qs=(query||'').toLowerCase().split(/\s+/).filter(w=>w.length>2).slice(0,4);
+          if(!qs.length) return {ok:true,result:'(empty)'};
+          const like=qs.map(w=>"(q LIKE '%"+w.replace(/'/g,"")+"%' OR a LIKE '%"+w.replace(/'/g,"")+"%')").join(" AND ");
+          const r=window.KAI_CHAT.exec("SELECT src,q,a FROM chat WHERE "+like+" LIMIT 3");
+          if(!r[0]) return {ok:true,result:'(no match)'};
+          return {ok:true,result:r[0].values.map(v=>'['+v[0]+']\nQ: '+v[1].slice(0,200)+'\nA: '+v[2].slice(0,1500)).join("\n\n")};
+        }catch(e){return {ok:false,result:'lookup failed: '+e.message};}
       }
     },
     play_song: {

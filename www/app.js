@@ -6,21 +6,39 @@ function xhrJSON(url){return new Promise((res,rej)=>{const x=new XMLHttpRequest(
 let DB=null, PROFILE=null, GRAPH=null;
 let chats=[], current=null;            // chats: {id,title,msgs:[{role,text}],vault:Set(person)}
 let api={provider:null,key:null};
-window.__api=api;
+window.__api=api;  // shared ref, never reassigned
 let MEMORY=[];  // persistent cross-chat memory (facts KAI keeps)
 function loadMem(){ try{ MEMORY=JSON.parse(localStorage.getItem('kai_memory')||'[]'); }catch(e){ MEMORY=[]; } }
 function rememberFact(f){ if(f&&!MEMORY.includes(f)){ MEMORY.push(f); if(MEMORY.length>200)MEMORY.shift(); try{localStorage.setItem('kai_memory',JSON.stringify(MEMORY));}catch(e){} } }      // active API (null = local)
 
 // ---------- storage (in-memory + localStorage for chats/api) ----------
-function save(){ try{
+// FIXED: separate API save from chat save. saveChats() never touches api.
+// saveApiToStorage() is the ONLY place that writes api, and only when api.key exists.
+function saveChats(){ try{
   localStorage.setItem('kai_chats',JSON.stringify(chats.map(c=>({id:c.id,title:c.title,msgs:c.msgs,vault:[...c.vault]}))));
-  localStorage.setItem('kai_api',JSON.stringify(api));
 }catch(e){} }
-function load(){ try{
-  const c=JSON.parse(localStorage.getItem('kai_chats')||'[]');
-  chats=c.map(x=>({...x,vault:new Set(x.vault||[])}));
-  const a=JSON.parse(localStorage.getItem('kai_api')||'null'); if(a&&a.key){api=a;}
-}catch(e){chats=[];} }
+function saveApiToStorage(){
+  // Only persist when we actually have a key; never overwrite stored creds with null/empty
+  try{
+    if(api && api.key && api.provider){
+      localStorage.setItem('kai_api',JSON.stringify({provider:api.provider,key:api.key}));
+    }
+  }catch(e){}
+}
+// Legacy alias so existing callers don't break — but now save() only saves chats
+function save(){ saveChats(); }
+function load(){
+  // Load chats (safe to fail independently)
+  try{
+    const c=JSON.parse(localStorage.getItem('kai_chats')||'[]');
+    chats=c.map(x=>({...x,vault:new Set(x.vault||[])}));
+  }catch(e){ chats=[]; }
+  // Load api independently — failure of chats must NOT wipe api
+  try{
+    const a=JSON.parse(localStorage.getItem('kai_api')||'null');
+    if(a && a.key && a.provider){ api.provider=a.provider; api.key=a.key; window.__api=api; }
+  }catch(e){}
+}
 
 // ---------- boot ----------
 let READY=false, BOOT_ERR=null;
@@ -60,14 +78,7 @@ async function boot(){
     }
     DB=new SQL.Database(bytes);
     KaiVoice.init(DB,PROFILE,TRAINED);
-    // Load KAI's assistant knowledge pack (6,953 HF curated Q&A)
-    try{
-      let kbytes;
-      try{ kbytes=new Uint8Array(await xhrBuffer('kai_knowledge.db')); }
-      catch(e){ const gz=new Uint8Array(await xhrBuffer('kai_knowledge.db.gz')); kbytes=pako.ungzip(gz); }
-      window.KAI_KNOWLEDGE=new SQL.Database(kbytes);
-      console.log('KAI knowledge loaded');
-    }catch(e){ console.warn('knowledge load failed',e); }
+
     // Load KAI's skill library (9,786 Claude-style skills)
     try{
       let sbytes;
@@ -78,14 +89,22 @@ async function boot(){
       KaiSkills.init(sdb);
       console.log('KAI skills loaded:', KaiSkills.stats());
     }catch(e){ console.warn('skills load failed',e); }
-    // Load KAI's code pillar (120,944 code Q&A across languages)
-    try{
-      let cbytes;
-      try{ cbytes=new Uint8Array(await xhrBuffer('kai_code.db')); }
-      catch(e){ const gz=new Uint8Array(await xhrBuffer('kai_code.db.gz')); cbytes=pako.ungzip(gz); }
-      window.KAI_CODE = new SQL.Database(cbytes);
-      console.log('KAI code pillar loaded');
-    }catch(e){ console.warn('code DB load failed',e); }
+    // Load KAI's 6 KNOWLEDGE PILLARS (410k total entries)
+    async function loadPillar(name, file, dbVar){
+      try{
+        let bytes;
+        try{ bytes=new Uint8Array(await xhrBuffer(file+'.db')); }
+        catch(e){ const gz=new Uint8Array(await xhrBuffer(file+'.db.gz')); bytes=pako.ungzip(gz); }
+        window[dbVar] = new SQL.Database(bytes);
+        console.log('pillar loaded:', name);
+      }catch(e){ console.warn('pillar '+name+' failed:',e.message); }
+    }
+    await loadPillar('code',         'kai_code',         'KAI_CODE');
+    await loadPillar('reasoning',    'kai_reason',       'KAI_REASON');
+    await loadPillar('writing',      'kai_writing',      'KAI_WRITE');
+    await loadPillar('research',     'kai_research',     'KAI_RESEARCH');
+    await loadPillar('productivity', 'kai_productivity', 'KAI_PROD');
+    await loadPillar('chat',         'kai_chat',         'KAI_CHAT');
     READY=true;
     if(api.key&&api.provider) setModeLabel(api.provider);
     renderChatList();
@@ -328,7 +347,10 @@ async function saveApi(){
   let res;
   try{ res=await Providers.verify(prov,key); }catch(e){ res={ok:true,soft:true,reason:'will confirm on first message'}; }
   if(res.ok){
-    api={provider:prov,key}; window.__api=api; save(); setModeLabel(prov); setStatus(prov);
+    // mutate the existing api object so window.__api stays in sync (don't replace the ref)
+    api.provider=prov; api.key=key; window.__api=api;
+    saveApiToStorage();
+    setModeLabel(prov); setStatus(prov);
     if(res.soft){
       $('apiStatus').innerHTML='<b class="ok">'+prov+' connected</b> ('+res.reason+'). Memory stays local.';
     } else {
@@ -338,8 +360,12 @@ async function saveApi(){
     $('apiStatus').innerHTML='<b class="bad">'+prov+': '+res.reason+'</b> — check the key, or use local.';
   }
 }
-function clearApi(){ api={provider:null,key:null}; save(); setModeLabel(null);
-  $('apiStatus').innerHTML='Currently: <b class="ok">Local mode</b>'; $('apiKey').value='';}
+function clearApi(){
+  api.provider=null; api.key=null; window.__api=api;
+  try{ localStorage.removeItem('kai_api'); }catch(e){}
+  setModeLabel(null);
+  $('apiStatus').innerHTML='Currently: <b class="ok">Local mode</b>'; $('apiKey').value='';
+}
 function setModeLabel(prov){
   $('modeLabel').textContent=prov?prov.toUpperCase():'LOCAL';
   $('modepill').innerHTML=prov?`brain: <b>${prov}</b> · memory: your 527k messages (local)`:'brain: <b>local</b> · memory: your 527k messages';

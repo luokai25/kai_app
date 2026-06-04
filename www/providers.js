@@ -148,17 +148,24 @@ window.Providers = (function(){
 
   // Verify a key. Returns {ok, soft?, reason?}.
   async function verify(name, key){
+    // Soft-by-default: only refuse on explicit auth rejection (401/403).
+    // CORS, network blips, rate limits, transient server errors -> soft-accept.
+    // The real test is the first message; this just sanity-checks the format.
     const d = DEFS[name]; if(!d) return {ok:false, reason:"unknown provider"};
+    if(!d.test(key)) return {ok:false, reason:"key format doesn't match "+name};
     try{
-      const body = d.chatBody([{role:"user",content:"hi"}], "Reply with: ok");
-      const r = await _fetch(d.url, {method:"POST", headers: d.headers(key), body}, 15000);
+      const body = d.chatBody([{role:"user",content:"hi"}], "Reply: ok");
+      const r = await _fetch(d.url, {method:"POST", headers: d.headers(key), body}, 12000);
       if(r.ok) return {ok:true};
       if(r.status === 401 || r.status === 403){
-        return {ok:false, reason:`key rejected (${r.status})`};
+        const t = await r.text();
+        return {ok:false, reason:`key rejected (${r.status}): ${t.slice(0,140)}`};
       }
-      return {ok:true, soft:true, reason:`accepted (probe returned ${r.status})`};
+      // any other status — soft accept
+      return {ok:true, soft:true, reason:`format valid (probe ${r.status} — will use)`};
     }catch(e){
-      return {ok:true, soft:true, reason:"format valid; will confirm on first message"};
+      // network/CORS error — soft accept, format already validated
+      return {ok:true, soft:true, reason:"format valid (network blocked probe — will use)"};
     }
   }
 
