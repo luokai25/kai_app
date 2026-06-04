@@ -219,7 +219,14 @@ async function send(){
       // chat history (recent turns)
       const hist=current.msgs.filter(m=>!m._t).slice(-8).map(m=>({role:m.role==='me'?'user':'assistant',content:m.text||''}));
       hist.push({role:'user',content:text});
-      const out=await Providers.agenticChat(api.provider,api.key,hist,sys,KaiWorkspace.TOOLS,(n,a)=>KaiWorkspace.exec(n,a));
+      // Fallback to simple chat if Workspace tools not loaded yet
+      let out;
+      if(window.KaiWorkspace && KaiWorkspace.TOOLS){
+        out = await Providers.agenticChat(api.provider,api.key,hist,sys,KaiWorkspace.TOOLS,(n,a)=>KaiWorkspace.exec(n,a));
+      } else {
+        const txt = await Providers.chat(api.provider,api.key,hist,sys);
+        out = {text:txt, used:[], extra:null};
+      }
       reply=out.text;
       // attach inline html (e.g. music player) if a tool returned it
       if(out.extra && out.extra.html){
@@ -433,7 +440,7 @@ function drawVault(){
     } else {
       $('vaultInfo').textContent = n.id;
     }
-  });
+  }, '__chat__');
   $('vaultInfo').textContent = scored.length
     ? `${scored.length} concepts · ${edges.length} links · ${projects.length} project${projects.length===1?'':'s'}`
     : 'Chat is empty — concepts will appear as you talk.';
@@ -523,12 +530,13 @@ window.addEventListener('DOMContentLoaded',()=>{
       const c = l.type==='error'?'#ff8787':l.type==='step'?'#8ce99a':'#aaa';
       return `<div style="font-family:monospace;font-size:11px;color:${c}">[${tm}] ${esc(l.msg)}</div>`;
     }).join('');
-    const stopBtn = (t.status==='running')?`<button class="tm-btn" id="wcStop" data-id="${t.id}" style="background:#ff8787">⏸ Stop</button>`:'';
-    const delBtn = `<button class="tm-btn" id="wcDel" data-id="${t.id}">🗑 Delete</button>`;
+    const stopBtn = (t.status==='running')?`<button class="tm-btn" id="wcStop" data-id="${t.id}" style="background:#3a2a1a">⏸ Stop</button>`:'';
+    const planBtn = (t.status==='idle' && t.goal) ? `<button class="tm-btn" id="wcAskPlan" data-id="${t.id}" style="background:#1f3a1f">▶ Ask KAI to plan</button>` : '';
+    const delBtn = `<button class="tm-btn" id="wcDel" data-id="${t.id}">🗑</button>`;
     $('wcDetail').innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:start">
         <div><h4 style="margin:0">${esc(t.title)}</h4><div style="font-size:11px;color:var(--dim)">status: ${t.status} · ${t.currentStep}/${t.plan.length}</div></div>
-        <div>${stopBtn} ${delBtn}</div>
+        <div>${planBtn} ${stopBtn} ${delBtn}</div>
       </div>
       <div style="margin-top:8px;font-size:12px;color:var(--dim)">Goal: ${esc(t.goal||'(none)')}</div>
       <div class="sec" style="margin-top:14px">Plan</div>
@@ -540,6 +548,15 @@ window.addEventListener('DOMContentLoaded',()=>{
     `;
     const stop = document.getElementById('wcStop');
     if(stop) stop.onclick = ()=>{ KaiComputer.stop(stop.dataset.id); wcRenderDetail(); wcRenderList(); };
+    const askPlan = document.getElementById('wcAskPlan');
+    if(askPlan) askPlan.onclick = ()=>{
+      const proj = KaiComputer.get(askPlan.dataset.id);
+      if(!proj) return;
+      closeAll();
+      // Inject a message into chat asking KAI to plan it
+      $('input').value = `Plan and run this project for me. Use project_plan with the right steps, then start executing.\n\nProject: ${proj.title}\nID: ${proj.id}\nGoal: ${proj.goal}`;
+      $('input').focus();
+    };
     const del = document.getElementById('wcDel');
     if(del) del.onclick = ()=>{ if(confirm('Delete this project?')){ KaiComputer.remove(del.dataset.id); wcRenderDetail(); wcRenderList(); } };
   }
@@ -552,8 +569,14 @@ window.addEventListener('DOMContentLoaded',()=>{
   $('wcNew').onclick=()=>{
     const title = prompt('Project name?'); if(!title) return;
     const goal = prompt('Goal (what should KAI accomplish)?')||'';
-    KaiComputer.newTask(title, goal);
+    const t = KaiComputer.newTask(title, goal);
     wcRenderList(); wcRenderDetail();
+    // If they gave a goal, offer to start KAI on it
+    if(goal && api.key && confirm('Ask KAI to plan and run this now?')){
+      closeAll();
+      $('input').value = `Plan and run this project for me. Use project_plan with the right steps, then start executing.\n\nProject: ${t.title}\nID: ${t.id}\nGoal: ${t.goal}`;
+      $('input').focus();
+    }
   };
   // Live updates — when KaiComputer fires events, refresh the UI if open
   KaiComputer.on((kind, task)=>{
