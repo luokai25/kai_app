@@ -324,56 +324,119 @@ function drawFullGraph(){
   });
 }
 function drawVault(){
-  if(!current || !GRAPH) return;
-  // Scan ALL messages in the current chat for people mentions, building live context
-  // Each person mentioned gets a node; recently-mentioned = bigger/brighter
-  const recency = new Map(); // person -> last index they appeared
-  const counts = new Map();
-  if(window.KaiVoice && current.msgs){
-    current.msgs.forEach((m, i)=>{
-      const text = m.text || '';
-      if(!text || text.length < 3) return;
-      // Use KaiVoice to find people relevant to each message
-      try{
-        const matches = KaiVoice.recall(text, null, 3) || [];
-        matches.forEach(mem=>{
-          if(mem.person && mem.person !== 'Kai'){
-            current.vault.add(mem.person);
-            recency.set(mem.person, i);
-            counts.set(mem.person, (counts.get(mem.person)||0)+1);
-          }
-        });
-      }catch(e){}
-      // Also: simple direct mentions (e.g. user says "Rawan said...")
-      const graphNodes = (GRAPH.nodes||[]).map(n=>n.id).filter(n=>n!=='Kai');
-      graphNodes.forEach(name=>{
-        if(text.toLowerCase().includes((name||'').toLowerCase())){
-          current.vault.add(name);
-          recency.set(name, Math.max(recency.get(name)||0, i));
-          counts.set(name, (counts.get(name)||0)+1);
-        }
-      });
+  // Obsidian-style graph: nodes = concepts/keywords from THIS chat, edges = co-occurrence.
+  // Plus active KAI Computer projects as special nodes.
+  if(!current) return;
+
+  // 1. Extract concepts from this chat's messages
+  // Strategy: tokenize words, filter stopwords + short words, weight by frequency + rarity
+  const STOP = new Set(("the be to of and a in that have i it for not on with he as you do at this but his by from they we say her she or an will my one all would there their what so up out if about who get which go me when make can like time no just him know take people into year your good some could them see other than then now look only come its over think also back after use two how our work first well way even new want because any these give day most us is am are was were has had been being can't cant don't dont won't wont yes ok okk yh yep ye lol hmm hey hi hello bye hr min sec hrs mins secs am pm yeah nope sure haha lmao").split(" "));
+  const concepts = new Map(); // word -> {count, msgIndices}
+  const docCount = (current.msgs||[]).length;
+  (current.msgs||[]).forEach((m, i)=>{
+    const text = (m.text || '').toLowerCase();
+    if(!text) return;
+    // tokenize: letters only, length >= 4
+    const seen_in_msg = new Set();
+    const tokens = text.match(/[a-z][a-z']{3,}/g) || [];
+    tokens.forEach(w=>{
+      if(STOP.has(w)) return;
+      if(w.length > 18) return;
+      if(seen_in_msg.has(w)) return;
+      seen_in_msg.add(w);
+      if(!concepts.has(w)) concepts.set(w, {count:0, msgIndices:new Set()});
+      const c = concepts.get(w);
+      c.count++; c.msgIndices.add(i);
     });
-  }
-  const people=[...current.vault];
-  const lastIdx = (current.msgs||[]).length - 1;
-  const nodes=[{id:'Kai',label:'Kai',size:36,color:'#fff3bf'}].concat(
-    people.map(p=>{
-      const n=(GRAPH.nodes||[]).find(x=>x.id===p)||{};
-      const r = recency.get(p);
-      const isRecent = r !== undefined && (lastIdx - r) <= 2;
-      const c = counts.get(p) || 1;
-      const size = Math.min(40, 18 + Math.log(1+c)*6);
-      return {id:p, label:p, size, color: isRecent ? '#ffd96b' : (n.color || '#74c0fc')};
-    }));
-  // Edge width: thicker = more mentions
-  const edges=people.map(p=>({from:'Kai', to:p, w: 10 + Math.min(30, (counts.get(p)||1)*3)}));
-  vaultG=drawGraph($('vault'),nodes,edges,$('vaultInfo'),(n)=>{
-    if(n.id==='Kai'){$('vaultInfo').textContent='Kai — this conversation.';return;}
-    const mem=KaiVoice.memoriesWith(n.id,1)[0];
-    $('vaultInfo').innerHTML=`<b>${n.id}</b>${mem?'<br>"'+esc(mem.text.slice(0,80))+'"':''}`;
+    // also capture multi-word capitalized things from the original text (titles, names of things)
+    const original = m.text || '';
+    const caps = original.match(/\b[A-Z][a-zA-Z]{2,}(?:\s+[A-Z][a-zA-Z]+){0,2}/g) || [];
+    caps.forEach(phrase=>{
+      const key = phrase.toLowerCase();
+      if(key.length < 4 || key.length > 40) return;
+      if(STOP.has(key)) return;
+      if(!concepts.has(key)) concepts.set(key, {count:0, msgIndices:new Set(), isPhrase:true});
+      const c = concepts.get(key);
+      c.count++; c.msgIndices.add(i);
+    });
   });
-  $('vaultInfo').textContent=people.length?`${people.length} ${people.length===1?'person':'people'} touched in this chat.`:'No one mentioned yet — this chat\'s vault grows as you talk.';
+
+  // 2. Score concepts: more count = bigger, but prefer concepts in recent messages
+  const lastIdx = (current.msgs||[]).length - 1;
+  const scored = [...concepts.entries()].map(([w,c])=>{
+    const recent = Math.max(...c.msgIndices) >= Math.max(0, lastIdx-3);
+    const score = c.count + (c.isPhrase?2:0) + (recent?1.5:0);
+    return {word:w, count:c.count, msgIndices:c.msgIndices, score, recent, isPhrase:c.isPhrase};
+  }).sort((a,b)=>b.score-a.score).slice(0, 18);  // cap at 18 nodes for readable graph
+
+  // 3. Add active projects as special highlighted nodes
+  const projects = (window.KaiComputer ? window.KaiComputer.list() : []).filter(t=>t.status==='running'||t.status==='paused').slice(0,4);
+
+  // 4. Build nodes
+  const nodes = [{id:'__chat__', label:'this chat', size:30, color:'#fff3bf'}];
+  scored.forEach(s=>{
+    const label = s.word.length>20 ? s.word.slice(0,18)+'…' : s.word;
+    const size = Math.min(34, 14 + Math.log(1+s.count)*5);
+    const color = s.recent ? '#ffd96b' : (s.isPhrase ? '#b197fc' : '#74c0fc');
+    nodes.push({id:s.word, label, size, color});
+  });
+  projects.forEach(p=>{
+    nodes.push({id:'__proj__'+p.id, label:'📁 '+p.title.slice(0,16), size:26, color:'#8ce99a'});
+  });
+
+  // 5. Build edges: co-occurrence within the same message → edge between two concepts
+  const edges = [];
+  const edgeSet = new Set();
+  for(let i=0; i<scored.length; i++){
+    for(let j=i+1; j<scored.length; j++){
+      const a = scored[i], b = scored[j];
+      // intersection of message indices
+      let shared = 0;
+      a.msgIndices.forEach(idx=>{ if(b.msgIndices.has(idx)) shared++; });
+      if(shared > 0){
+        const key = a.word + '|' + b.word;
+        if(edgeSet.has(key)) continue;
+        edgeSet.add(key);
+        edges.push({from:a.word, to:b.word, w: 4 + shared*6});
+      }
+    }
+  }
+  // Also connect every top concept loosely to the central chat node
+  scored.slice(0, 8).forEach(s=>{
+    edges.push({from:'__chat__', to:s.word, w: 3});
+  });
+  // Connect projects to concepts they mention in title or goal
+  projects.forEach(p=>{
+    const ptext = ((p.title||'')+' '+(p.goal||'')).toLowerCase();
+    scored.forEach(s=>{
+      if(ptext.includes(s.word)){
+        edges.push({from:'__proj__'+p.id, to:s.word, w:8});
+      }
+    });
+    edges.push({from:'__chat__', to:'__proj__'+p.id, w:5});
+  });
+
+  vaultG=drawGraph($('vault'),nodes,edges,$('vaultInfo'),(n)=>{
+    if(n.id==='__chat__'){ $('vaultInfo').textContent=`${scored.length} concepts in this chat, ${projects.length} active project${projects.length===1?'':'s'}.`; return; }
+    if(n.id.startsWith('__proj__')){
+      const pid = n.id.replace('__proj__','');
+      const p = projects.find(x=>x.id===pid);
+      $('vaultInfo').innerHTML = p ? `<b>📁 ${esc(p.title)}</b><br>${esc(p.goal||'').slice(0,140)}<br><span style="color:var(--dim);font-size:11px">${p.currentStep}/${p.plan.length} steps · ${p.status}</span>` : '(project gone)';
+      return;
+    }
+    const c = concepts.get(n.id);
+    if(c){
+      // find first message mentioning this concept for preview
+      const firstIdx = Math.min(...c.msgIndices);
+      const sample = (current.msgs[firstIdx]?.text || '').slice(0,140);
+      $('vaultInfo').innerHTML = `<b>${esc(n.id)}</b> · ${c.count}× <br><span style="color:var(--dim);font-size:11px">"${esc(sample)}…"</span>`;
+    } else {
+      $('vaultInfo').textContent = n.id;
+    }
+  });
+  $('vaultInfo').textContent = scored.length
+    ? `${scored.length} concepts · ${edges.length} links · ${projects.length} project${projects.length===1?'':'s'}`
+    : 'Chat is empty — concepts will appear as you talk.';
 }
 
 // ---------- API ----------
