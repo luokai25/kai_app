@@ -71,7 +71,7 @@ jobs:
           cordova plugin add cordova-plugin-android-permissions || true
           cordova plugin add cordova-plugin-file || true
           cordova plugin add cordova-plugin-inappbrowser || true
-          cordova plugin add cordova-plugin-local-notifications-android-12 || cordova plugin add @havesource/cordova-plugin-push || true
+          # local-notification plugins are abandoned/Gradle-incompatible — rely on Web Notification API instead (works while app is open)
           GRADLE_FILE=$(find platforms/android -name "build.gradle" -path "*app*" | head -1)
           if [ -n "$GRADLE_FILE" ]; then
             echo "android { androidResources { noCompress 'db','wasm' } }" >> "$GRADLE_FILE"
