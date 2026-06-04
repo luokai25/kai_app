@@ -305,7 +305,7 @@ function drawFullGraph(){
   });
 }
 function drawVault(){
-  if(!current) return;
+  if(!current || !GRAPH) return;
   const people=[...current.vault];
   const nodes=[{id:'Kai',label:'Kai',size:36,color:'#fff3bf'}].concat(
     people.map(p=>{const n=(GRAPH.nodes||[]).find(x=>x.id===p)||{};return{id:p,label:p,size:n.size?Math.min(40,n.size*0.6):22,color:n.color||'#74c0fc'};}));
@@ -323,7 +323,7 @@ async function saveApi(){
   const key=($('apiKey').value||'').trim();
   if(!key){ $('apiStatus').innerHTML='Paste a key first, or use local only.'; return; }
   const prov=Providers.detect(key);
-  if(!prov){ $('apiStatus').innerHTML='<b class="bad">Unrecognized key format.</b> Expected sk-ant- / gsk_ / sk- / 32-char Mistral.'; return; }
+  if(!prov){ $('apiStatus').innerHTML='<b class="bad">Unrecognized key format.</b> Supports Anthropic (sk-ant-), Groq (gsk_), Cerebras (csk-), xAI (xai-), Fireworks (fw_), OpenRouter (sk-or-), Together (64-hex), Mistral (32-char), OpenAI (sk-…), DeepSeek (sk-…). 10 providers total.'; return; }
   $('apiStatus').innerHTML='Detected <b>'+prov+'</b> — checking…';
   let res;
   try{ res=await Providers.verify(prov,key); }catch(e){ res={ok:true,soft:true,reason:'will confirm on first message'}; }
@@ -443,8 +443,8 @@ Decide: is there anything Kai should be reminded of, encouraged about, or told r
       'You are KAI in ambient mode. Be sparing — only notify if it genuinely helps Kai.');
     const m = out.match(/\{[\s\S]*\}/);
     if(m){
-      const j = JSON.parse(m[0]);
-      if(j.notify && j.title){
+      let j=null; try{ j=JSON.parse(m[0]); }catch(e){}
+      if(j && j.notify && j.title){
         await KaiBackground.notify(j.title, j.message||'');
         localStorage.setItem('kai_last_ping', String(Date.now()));
         // also log it in workspace

@@ -79,19 +79,30 @@ window.KaiGitHub = (function(){
 
   // Create a new branch (off main HEAD)
   async function makeBranch(name){
-    const main = await _req(`/repos/${owner}/${repo}/git/ref/heads/main`);
+    // Try 'main' first, fall back to 'master'
+    let baseRef = null;
+    try{ baseRef = await _req(`/repos/${owner}/${repo}/git/ref/heads/main`); }
+    catch(e){ baseRef = await _req(`/repos/${owner}/${repo}/git/ref/heads/master`); }
     return _req(`/repos/${owner}/${repo}/git/refs`, {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ref:`refs/heads/${name}`, sha: main.object.sha})
+      body: JSON.stringify({ref:`refs/heads/${name}`, sha: baseRef.object.sha})
     });
   }
 
   // Open a Pull Request from a branch back to main
   async function openPR(branch, title, body){
-    return _req(`/repos/${owner}/${repo}/pulls`, {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({title, head:branch, base:'main', body: body||''})
-    });
+    // Try main first, fall back to master
+    try{
+      return await _req(`/repos/${owner}/${repo}/pulls`, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({title, head:branch, base:'main', body: body||''})
+      });
+    }catch(e){
+      return _req(`/repos/${owner}/${repo}/pulls`, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({title, head:branch, base:'master', body: body||''})
+      });
+    }
   }
 
   // Latest CI build status (so KAI knows when his changes built)
