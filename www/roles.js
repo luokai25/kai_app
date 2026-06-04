@@ -4,8 +4,8 @@ window.KaiRoles = (function(){
   const ROLES = {
     researcher: { name:'Researcher', desc:'Digs into a topic via web/knowledge tools, returns a brief.', preferTools:['web_search','web_fetch','knowledge_lookup','memory_recall'],
       system: 'You are Kai\'s research specialist. Goal: investigate the topic thoroughly using tools, then deliver a short, structured brief (key findings, sources, what\'s still unknown). Be factual, concise.' },
-    coder: { name:'Coder', desc:'Writes, fixes, reviews code. Uses skills + code execution.', preferTools:['find_skill','load_skill','run_code','github_read_self','github_propose_fix'],
-      system: 'You are Kai\'s coding specialist. Plan, then implement. Use find_skill/load_skill for techniques, run_code to validate. If editing KAI\'s own code, propose via PR. Output clean, tested code.' },
+    coder: { name:'Coder', desc:'Writes, fixes, reviews code. Uses skills + code execution.', preferTools:['code_lookup','find_skill','load_skill','run_code','github_read_self','github_propose_fix'],
+      system: 'You are Kai\'s coding specialist. Plan, then implement. Use code_lookup for examples across languages (120k snippets), find_skill/load_skill for higher-level techniques, run_code to validate. If editing KAI\'s own code, propose via PR. Output clean, tested code.' },
     writer: { name:'Writer', desc:'Drafts messages, posts, emails in Kai\'s voice.', preferTools:['memory_recall','knowledge_lookup'],
       system: 'You are Kai\'s writing specialist. Use memory_recall for tone calibration. Deliver short, sharp prose in Kai\'s voice. Default English. Match the platform (DM/email/post).' },
     planner: { name:'Planner', desc:'Breaks goals into steps, tracks via KaiGoals.', preferTools:['memory_recall'],

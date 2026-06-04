@@ -74,10 +74,18 @@ async function boot(){
       try{ sbytes=new Uint8Array(await xhrBuffer('kai_skills.db')); }
       catch(e){ const gz=new Uint8Array(await xhrBuffer('kai_skills.db.gz')); sbytes=pako.ungzip(gz); }
       const sdb=new SQL.Database(sbytes);
-      window.KAI_SKILLS_DB = sdb;  // exposed so add_skill can write
+      window.KAI_SKILLS_DB = sdb;
       KaiSkills.init(sdb);
       console.log('KAI skills loaded:', KaiSkills.stats());
     }catch(e){ console.warn('skills load failed',e); }
+    // Load KAI's code pillar (120,944 code Q&A across languages)
+    try{
+      let cbytes;
+      try{ cbytes=new Uint8Array(await xhrBuffer('kai_code.db')); }
+      catch(e){ const gz=new Uint8Array(await xhrBuffer('kai_code.db.gz')); cbytes=pako.ungzip(gz); }
+      window.KAI_CODE = new SQL.Database(cbytes);
+      console.log('KAI code pillar loaded');
+    }catch(e){ console.warn('code DB load failed',e); }
     READY=true;
     if(api.key&&api.provider) setModeLabel(api.provider);
     renderChatList();

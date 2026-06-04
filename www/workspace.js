@@ -128,6 +128,23 @@ window.KaiWorkspace = (function(){
         }catch(e){ return { ok:false, result:'lookup failed: '+e.message }; }
       }
     },
+    code_lookup: {
+      desc: "Search KAI's code knowledge base (120,944 real code Q&A across Python, JavaScript, SQL, Java, HTML, C++, etc.). Use for any coding task — patterns, examples, algorithms, snippets. Returns top-3 matched solutions with their language.",
+      params: {query: "what to do in code", lang: "(optional) python | javascript | sql | java | html | cpp | go | rust | general"},
+      run: async ({query, lang}) => {
+        if(!window.KAI_CODE) return { ok:false, result:'code DB not loaded' };
+        try{
+          const qs=(query||'').toLowerCase().split(/\s+/).filter(w=>w.length>2).slice(0,5);
+          if(!qs.length) return { ok:true, result:'(empty query)' };
+          const like=qs.map(w=>"(q LIKE '%"+w.replace(/'/g,"")+"%' OR a LIKE '%"+w.replace(/'/g,"")+"%')").join(" AND ");
+          const langF = lang ? " AND lang='"+lang.replace(/'/g,"")+"'" : '';
+          const r=window.KAI_CODE.exec("SELECT lang,q,a FROM code WHERE "+like+langF+" LIMIT 3");
+          if(!r[0]) return { ok:true, result:'(no match — try a broader query or different language)' };
+          const out = r[0].values.map(v=>'['+v[0]+']\n# '+v[1].slice(0,200)+'\n\n'+v[2].slice(0,1200)).join("\n\n---\n\n");
+          return { ok:true, result: out };
+        }catch(e){ return { ok:false, result:'lookup failed: '+e.message }; }
+      }
+    },
     play_song: {
       desc: "Find and play a song. Embeds a player in the chat.",
       params: {query: "song name/artist/description"},
