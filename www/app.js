@@ -215,7 +215,7 @@ async function send(){
       let sys=KaiVoice.buildSystem(person)
         +(MEMORY.length?('\n\nLong-term memory:\n- '+MEMORY.slice(-15).join('\n- ')):'')
         +(selfNotes.length?('\n\nWhat you remember about Kai:\n- '+selfNotes.slice(-15).join('\n- ')):'')
-        +'\n\nYou have a workspace and you can EVOLVE YOURSELF. Soft layers (skills, theme, self-notes, lessons) — change live via tools. Code/UI changes — use github_propose_fix to open a PR Kai approves; CI builds your next APK. If something errors, use log_error_lesson so future-you avoids it. Be bold but careful: skills/theme/notes are reversible, code changes flow through PR review. Stay brief, act when it helps, ask when uncertain.';
+        +'\n\nYou have KAI COMPUTER — a persistent workspace where projects run in background, independent of your chat reply. For any multi-step or long-running task (research, build a website, draft a long doc, code a feature), use project_create + project_plan to start it. The project KEEPS RUNNING after this reply ends. Use project_step + project_file_write as you progress. For quick questions, just answer directly with your other tools. You also have 6 knowledge pillars (code_lookup, reasoning_lookup, writing_lookup, research_lookup, productivity_lookup, chat_lookup), the skill library (find_skill/load_skill), self-evolution (github_propose_fix opens a PR for code changes), vault/goals/specialists. Be proactive — when Kai asks for something substantial, propose making it a project. Stay brief in chat replies. English by default, Arabic only if Kai uses Arabic. Never mix.';
       // chat history (recent turns)
       const hist=current.msgs.filter(m=>!m._t).slice(-8).map(m=>({role:m.role==='me'?'user':'assistant',content:m.text||''}));
       hist.push({role:'user',content:text});
@@ -325,10 +325,49 @@ function drawFullGraph(){
 }
 function drawVault(){
   if(!current || !GRAPH) return;
+  // Scan ALL messages in the current chat for people mentions, building live context
+  // Each person mentioned gets a node; recently-mentioned = bigger/brighter
+  const recency = new Map(); // person -> last index they appeared
+  const counts = new Map();
+  if(window.KaiVoice && current.msgs){
+    current.msgs.forEach((m, i)=>{
+      const text = m.text || '';
+      if(!text || text.length < 3) return;
+      // Use KaiVoice to find people relevant to each message
+      try{
+        const matches = KaiVoice.recall(text, null, 3) || [];
+        matches.forEach(mem=>{
+          if(mem.person && mem.person !== 'Kai'){
+            current.vault.add(mem.person);
+            recency.set(mem.person, i);
+            counts.set(mem.person, (counts.get(mem.person)||0)+1);
+          }
+        });
+      }catch(e){}
+      // Also: simple direct mentions (e.g. user says "Rawan said...")
+      const graphNodes = (GRAPH.nodes||[]).map(n=>n.id).filter(n=>n!=='Kai');
+      graphNodes.forEach(name=>{
+        if(text.toLowerCase().includes((name||'').toLowerCase())){
+          current.vault.add(name);
+          recency.set(name, Math.max(recency.get(name)||0, i));
+          counts.set(name, (counts.get(name)||0)+1);
+        }
+      });
+    });
+  }
   const people=[...current.vault];
+  const lastIdx = (current.msgs||[]).length - 1;
   const nodes=[{id:'Kai',label:'Kai',size:36,color:'#fff3bf'}].concat(
-    people.map(p=>{const n=(GRAPH.nodes||[]).find(x=>x.id===p)||{};return{id:p,label:p,size:n.size?Math.min(40,n.size*0.6):22,color:n.color||'#74c0fc'};}));
-  const edges=people.map(p=>({from:'Kai',to:p,w:20}));
+    people.map(p=>{
+      const n=(GRAPH.nodes||[]).find(x=>x.id===p)||{};
+      const r = recency.get(p);
+      const isRecent = r !== undefined && (lastIdx - r) <= 2;
+      const c = counts.get(p) || 1;
+      const size = Math.min(40, 18 + Math.log(1+c)*6);
+      return {id:p, label:p, size, color: isRecent ? '#ffd96b' : (n.color || '#74c0fc')};
+    }));
+  // Edge width: thicker = more mentions
+  const edges=people.map(p=>({from:'Kai', to:p, w: 10 + Math.min(30, (counts.get(p)||1)*3)}));
   vaultG=drawGraph($('vault'),nodes,edges,$('vaultInfo'),(n)=>{
     if(n.id==='Kai'){$('vaultInfo').textContent='Kai — this conversation.';return;}
     const mem=KaiVoice.memoriesWith(n.id,1)[0];
@@ -389,20 +428,78 @@ window.addEventListener('DOMContentLoaded',()=>{
   $('openApi').onclick=()=>{openP('scrimApi','panelApi');
     $('apiStatus').innerHTML=api.provider?`Currently: <b class="ok">${api.provider}</b>`:'Currently: <b class="ok">Local mode</b>';};
   $('apiBack').onclick=closeAll;$('apiSave').onclick=saveApi;$('apiClear').onclick=clearApi;
+  function wcRenderList(){
+    const all = KaiComputer.list();
+    const html = all.length ? all.map(t=>{
+      const dot = t.status==='running'?'<span style="color:#8ce99a">●</span>':
+                  t.status==='done'?'<span style="color:#5c7cfa">✓</span>':
+                  t.status==='paused'?'<span style="color:#fab005">‖</span>':
+                  t.status==='error'?'<span style="color:#ff8787">!</span>':'<span style="color:#666">○</span>';
+      return `<div class="row wcRow" data-id="${t.id}" style="padding:8px 10px;cursor:pointer;border-radius:6px;font-size:13px">
+        ${dot} <b>${esc(t.title)}</b><br>
+        <span style="color:var(--dim);font-size:11px">${t.currentStep}/${t.plan.length} steps · ${t.status}</span>
+      </div>`;
+    }).join('') : '<div style="padding:14px;color:var(--dim);font-size:12px">No projects yet.</div>';
+    $('wcList').innerHTML = html;
+    document.querySelectorAll('.wcRow').forEach(el=>{
+      el.onclick = ()=>{ KaiComputer.setActive(el.dataset.id); wcRenderDetail(); wcRenderList(); };
+    });
+  }
+  function wcRenderDetail(){
+    const t = KaiComputer.active();
+    if(!t){ $('wcDetail').innerHTML='<div style="padding:20px;color:var(--dim);text-align:center">Select a project, or tap <b>+ New project</b>.</div>'; return; }
+    const planHtml = t.plan.length ? t.plan.map((p,i)=>{
+      const mark = p.status==='done'?'✓':p.status==='error'?'✕':i===t.currentStep?'→':'·';
+      const color = p.status==='done'?'#8ce99a':p.status==='error'?'#ff8787':i===t.currentStep?'#ffd96b':'#888';
+      return `<div style="padding:4px 0;color:${color};font-size:13px"><b>${mark}</b> ${esc(p.step)}${p.result?`<div style="font-size:11px;color:var(--dim);margin-left:18px">→ ${esc(p.result.slice(0,200))}</div>`:''}</div>`;
+    }).join('') : '<i style="color:var(--dim);font-size:12px">No plan yet — give KAI the goal and he\'ll plan it.</i>';
+    const files = Object.keys(t.files);
+    const filesHtml = files.length ? files.map(f=>`<div style="padding:3px 0;font-family:monospace;font-size:11px;color:var(--ink)">📄 ${esc(f)} <span style="color:var(--dim)">(${(t.files[f]||'').length} chars)</span></div>`).join('') : '<i style="color:var(--dim);font-size:12px">No files yet.</i>';
+    const logHtml = t.log.slice(-8).map(l=>{
+      const tm = new Date(l.t).toLocaleTimeString();
+      const c = l.type==='error'?'#ff8787':l.type==='step'?'#8ce99a':'#aaa';
+      return `<div style="font-family:monospace;font-size:11px;color:${c}">[${tm}] ${esc(l.msg)}</div>`;
+    }).join('');
+    const stopBtn = (t.status==='running')?`<button class="tm-btn" id="wcStop" data-id="${t.id}" style="background:#ff8787">⏸ Stop</button>`:'';
+    const delBtn = `<button class="tm-btn" id="wcDel" data-id="${t.id}">🗑 Delete</button>`;
+    $('wcDetail').innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:start">
+        <div><h4 style="margin:0">${esc(t.title)}</h4><div style="font-size:11px;color:var(--dim)">status: ${t.status} · ${t.currentStep}/${t.plan.length}</div></div>
+        <div>${stopBtn} ${delBtn}</div>
+      </div>
+      <div style="margin-top:8px;font-size:12px;color:var(--dim)">Goal: ${esc(t.goal||'(none)')}</div>
+      <div class="sec" style="margin-top:14px">Plan</div>
+      ${planHtml}
+      <div class="sec" style="margin-top:14px">Files (${files.length})</div>
+      ${filesHtml}
+      <div class="sec" style="margin-top:14px">Log</div>
+      <div style="background:#000;padding:6px 8px;border-radius:6px;max-height:140px;overflow-y:auto">${logHtml||'<i style="color:#666;font-size:11px">no activity</i>'}</div>
+    `;
+    const stop = document.getElementById('wcStop');
+    if(stop) stop.onclick = ()=>{ KaiComputer.stop(stop.dataset.id); wcRenderDetail(); wcRenderList(); };
+    const del = document.getElementById('wcDel');
+    if(del) del.onclick = ()=>{ if(confirm('Delete this project?')){ KaiComputer.remove(del.dataset.id); wcRenderDetail(); wcRenderList(); } };
+  }
   $('openWorkspace').onclick=()=>{
     openP('scrimW','panelW');
-    // populate
-    const sn=KaiWorkspace.getSelfNotes();
-    $('wSelfNotes').innerHTML = sn.length ? sn.map(n=>'• '+esc(n)).join('<br>') : '<i style="color:var(--dim)">Nothing yet — KAI will note things as you talk.</i>';
-    const log=KaiWorkspace.getRecentToolLog(15);
-    $('wToolLog').innerHTML = log.length ? log.map(l=>{
-      const d=new Date(l.t).toLocaleTimeString();
-      return `[${d}] <b style="color:${l.ok?'#8ce99a':'#ff8787'}">${esc(l.tool)}</b> → ${esc(l.output.slice(0,80))}`;
-    }).join('<br>') : '<i style="color:var(--dim)">No actions yet — give KAI something to do.</i>';
-    const tools = Object.entries(KaiWorkspace.TOOLS).map(([n,t])=>`<b style="color:var(--gold)">${n}</b> — ${esc(t.desc)}`).join('<br>');
-    $('wTools').innerHTML = tools;
-    $('wScratch').innerHTML='<i style="color:var(--dim)">Slots appear here as KAI uses them.</i>';
+    wcRenderList();
+    wcRenderDetail();
   };
+  $('wcClose').onclick=closeAll;
+  $('wcNew').onclick=()=>{
+    const title = prompt('Project name?'); if(!title) return;
+    const goal = prompt('Goal (what should KAI accomplish)?')||'';
+    KaiComputer.newTask(title, goal);
+    wcRenderList(); wcRenderDetail();
+  };
+  // Live updates — when KaiComputer fires events, refresh the UI if open
+  KaiComputer.on((kind, task)=>{
+    if(document.getElementById('panelW')?.classList.contains('open')){
+      wcRenderList(); if(task && task.id === (KaiComputer.active()?.id)) wcRenderDetail();
+    }
+  });
+  // Start the background ticker so detached tasks keep running
+  KaiComputer.startTicker();
   $('wClose').onclick=closeAll;
   $('scrimW').onclick=closeAll;
   $('openGit').onclick=()=>{

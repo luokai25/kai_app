@@ -203,6 +203,93 @@ window.KaiWorkspace = (function(){
         }catch(e){return {ok:false,result:'lookup failed: '+e.message};}
       }
     },
+    // ---- KAI COMPUTER: detached projects ----
+    project_create: {
+      desc: "Create a new long-running project that persists across chats. Use for multi-step work (build a website, research a topic deeply, write a long doc, code a feature). The project keeps running in the background after this reply ends.",
+      params: {title:"short project name", goal:"what to accomplish in detail"},
+      run: async ({title, goal})=>{
+        if(!window.KaiComputer) return {ok:false, result:'computer not loaded'};
+        const t = window.KaiComputer.newTask(title, goal);
+        return {ok:true, result:'project created: '+t.id+' ("'+t.title+'"). Use project_plan next to lay out steps.'};
+      }
+    },
+    project_plan: {
+      desc: "Set the plan (ordered steps) for a project. Each step should be small and concrete. After this, the project will start executing in background.",
+      params: {id:"project id", steps:"JSON array of step descriptions, e.g. [\"research X\",\"write outline\",\"draft section 1\"]"},
+      run: async ({id, steps})=>{
+        if(!window.KaiComputer) return {ok:false, result:'computer not loaded'};
+        let arr=[];
+        try{ arr = typeof steps==='string' ? JSON.parse(steps) : steps; }catch(e){ return {ok:false,result:'steps must be JSON array'}; }
+        if(!Array.isArray(arr) || !arr.length) return {ok:false, result:'need at least one step'};
+        const t = window.KaiComputer.get(id);
+        if(!t) return {ok:false, result:'no such project: '+id};
+        window.KaiComputer.setPlan(id, arr);
+        window.KaiComputer.appendLog(id, 'plan', arr.length+' steps planned');
+        return {ok:true, result:'plan set: '+arr.length+' steps. Project is now RUNNING in background — independent of this chat reply.'};
+      }
+    },
+    project_step: {
+      desc: "Execute one step of a project. Records the result and advances to the next step.",
+      params: {id:"project id", result:"what was done / output of this step"},
+      run: async ({id, result})=>{
+        if(!window.KaiComputer) return {ok:false, result:'computer not loaded'};
+        const t = window.KaiComputer.get(id);
+        if(!t) return {ok:false, result:'no such project: '+id};
+        const idx = t.currentStep;
+        if(idx >= t.plan.length) return {ok:true, result:'already done'};
+        window.KaiComputer.markStep(id, idx, 'done', result);
+        window.KaiComputer.appendLog(id, 'step', '✓ step '+(idx+1)+': '+(t.plan[idx]?.step||'').slice(0,80));
+        return {ok:true, result:'step '+(idx+1)+'/'+t.plan.length+' done'};
+      }
+    },
+    project_file_write: {
+      desc: "Write a file in the project workspace. Creates or overwrites. Files persist with the project.",
+      params: {id:"project id", filename:"name e.g. notes.md", content:"file content"},
+      run: async ({id, filename, content})=>{
+        if(!window.KaiComputer) return {ok:false, result:'computer not loaded'};
+        const t = window.KaiComputer.get(id);
+        if(!t) return {ok:false, result:'no such project: '+id};
+        window.KaiComputer.writeFile(id, filename, content||'');
+        window.KaiComputer.appendLog(id, 'file', 'wrote '+filename+' ('+(content||'').length+' chars)');
+        return {ok:true, result:'wrote '+filename};
+      }
+    },
+    project_file_read: {
+      desc: "Read a file from a project workspace.",
+      params: {id:"project id", filename:"file to read"},
+      run: async ({id, filename})=>{
+        if(!window.KaiComputer) return {ok:false, result:'computer not loaded'};
+        const c = window.KaiComputer.readFile(id, filename);
+        if(c === null) return {ok:false, result:'no such file: '+filename};
+        return {ok:true, result:c.slice(0,3000)};
+      }
+    },
+    project_status: {
+      desc: "Check status, plan, and files of a project (or all projects if no id given).",
+      params: {id:"(optional) specific project id"},
+      run: async ({id})=>{
+        if(!window.KaiComputer) return {ok:false, result:'computer not loaded'};
+        if(!id){
+          const all = window.KaiComputer.list();
+          if(!all.length) return {ok:true, result:'(no projects yet)'};
+          return {ok:true, result: all.slice(0,6).map(t=>'• '+t.id+' ['+t.status+'] '+t.title+' ('+t.currentStep+'/'+t.plan.length+')').join('\n')};
+        }
+        const t = window.KaiComputer.get(id);
+        if(!t) return {ok:false, result:'no such project'};
+        const planText = t.plan.map((p,i)=>(i<t.currentStep?'✓':i===t.currentStep?'→':'·')+' '+p.step).join('\n');
+        const files = Object.keys(t.files);
+        return {ok:true, result: t.title+'\nstatus: '+t.status+' ('+t.currentStep+'/'+t.plan.length+')\n\n'+planText+(files.length?'\n\nfiles: '+files.join(', '):'')};
+      }
+    },
+    project_stop: {
+      desc: "Stop a project (pauses it; can be resumed later or remove to delete).",
+      params: {id:"project id"},
+      run: async ({id})=>{
+        if(!window.KaiComputer) return {ok:false, result:'computer not loaded'};
+        window.KaiComputer.stop(id);
+        return {ok:true, result:'project paused'};
+      }
+    },
     play_song: {
       desc: "Find and play a song. Embeds a player in the chat.",
       params: {query: "song name/artist/description"},
