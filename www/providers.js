@@ -222,31 +222,90 @@ window.Providers = (function(){
       }
       return { text: reply, used: [], extra: null };
     }
-    // OpenAI-compatible tool loop
+    // OpenAI-compatible ADAPTIVE tool loop. Knows when to stop, when to push, when to bail.
     const tools = _toolsSchema(toolspec);
     const history = [{role:"system", content: sys||""}, ...msgs];
     const used = []; let extraHtml = null;
-    const MAX_STEPS = opts?.maxSteps || 15;
+    const MAX_STEPS = opts?.maxSteps || 666;
     const MAX_TOK = opts?.max_tokens || 2000;
+    let consecutiveErrors = 0;
+    let lastCallFingerprint = null;
+    let repeatedCallCount = 0;
+    let lastTextOnlyCheckpoint = "";
+
     for(let step=0; step<MAX_STEPS; step++){
+      // Adaptive budget warning: when 90% used, tell the model to wrap up
+      if(step === Math.floor(MAX_STEPS * 0.9)){
+        history.push({role:"system", content:"You're approaching the step budget ("+step+"/"+MAX_STEPS+"). Wrap up — finish the most important pieces and return a summary."});
+      }
       const body = JSON.stringify({
         model: opts?.model || d.model,
         max_tokens: MAX_TOK,
         messages: history,
         tools, tool_choice: "auto"
       });
-      const r = await _fetch(d.url, {method:"POST", headers: d.headers(key), body}, opts?.timeoutMs||60000);
-      if(!r.ok){ const t = await r.text(); throw new Error(`API ${r.status}: ${t.slice(0,200)}`); }
+      let r;
+      try{
+        r = await _fetch(d.url, {method:"POST", headers: d.headers(key), body}, opts?.timeoutMs||60000);
+      }catch(netErr){
+        consecutiveErrors++;
+        if(consecutiveErrors >= 3) throw netErr;
+        // brief backoff and retry
+        await new Promise(res=>setTimeout(res, 1500*consecutiveErrors));
+        continue;
+      }
+      if(!r.ok){
+        consecutiveErrors++;
+        if(consecutiveErrors >= 3){
+          const t = await r.text();
+          throw new Error(`API ${r.status}: ${t.slice(0,200)}`);
+        }
+        await new Promise(res=>setTimeout(res, 1500*consecutiveErrors));
+        continue;
+      }
+      consecutiveErrors = 0;
       const data = await r.json();
       const m = data.choices?.[0]?.message;
-      if(!m) return { text:"", used, extra: extraHtml };
+      if(!m) return { text: lastTextOnlyCheckpoint, used, extra: extraHtml };
       const calls = m.tool_calls || [];
-      if(!calls.length) return { text: m.content||"", used, extra: extraHtml };
+
+      // ADAPTIVE STOP: no tool calls + text means we're done
+      if(!calls.length){
+        return { text: m.content||lastTextOnlyCheckpoint, used, extra: extraHtml };
+      }
+
+      // Save any partial text the model produced alongside tool calls (some models do this)
+      if(m.content) lastTextOnlyCheckpoint = m.content;
+
+      // STUCK DETECTION: same tool + same args twice in a row → hint and gentle nudge
+      const fingerprint = JSON.stringify(calls.map(c=>({n:c.function?.name, a:c.function?.arguments})));
+      if(fingerprint === lastCallFingerprint){
+        repeatedCallCount++;
+        if(repeatedCallCount === 1){
+          history.push({role:"system", content:"You just repeated the same tool call. The same call won't give different results. Try a different approach: different tool, different args, or finalize your answer."});
+        } else if(repeatedCallCount >= 3){
+          // Genuinely stuck — bail with what we have
+          return { text: (lastTextOnlyCheckpoint || "(loop detected — stopping)"), used, extra: extraHtml };
+        }
+      } else {
+        repeatedCallCount = 0;
+        lastCallFingerprint = fingerprint;
+      }
+
       history.push(m);
       for(const c of calls){
         let args = {};
-        try{ args = JSON.parse(c.function?.arguments || "{}"); }catch(e){}
-        const res = await runTool(c.function.name, args);
+        try{ args = JSON.parse(c.function?.arguments || "{}"); }catch(e){
+          history.push({role:"tool", tool_call_id: c.id, name: c.function.name, content: "Error parsing your tool arguments as JSON: "+e.message+". Please retry with valid JSON arguments."});
+          continue;
+        }
+        let res;
+        try{
+          res = await runTool(c.function.name, args);
+        }catch(e){
+          // Don't crash the loop — feed the error back to the model so it can self-correct
+          res = { ok:false, result: "Tool threw an error: "+e.message+". You can retry or try a different approach." };
+        }
         used.push(c.function.name);
         if(res.html) extraHtml = res.html;
         history.push({role:"tool", tool_call_id: c.id, name: c.function.name, content: String(res.result||"").slice(0,3000)});

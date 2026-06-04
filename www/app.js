@@ -629,6 +629,78 @@ window.addEventListener('DOMContentLoaded',()=>{
 });
 
 
+
+
+// =========== PROJECT EXECUTION ENGINE ===========
+// When KAI calls project_plan, also attach a runner that drives each step via the API brain.
+// This is the missing wiring — projects now actually run.
+async function executeProjectStep(task, stepIndex){
+  if(!api.key || !api.provider) {
+    KaiComputer.appendLog(task.id, 'error', 'No API key — cannot execute. Pause.');
+    KaiComputer.setStatus(task.id, 'paused');
+    return;
+  }
+  const step = task.plan[stepIndex];
+  if(!step) return;
+  KaiComputer.appendLog(task.id, 'step', '→ working on: ' + step.step.slice(0,80));
+
+  // Build context for the LLM: project goal + plan with progress + relevant files
+  const planSummary = task.plan.map((p,i)=>{
+    const mark = i<stepIndex?'✓':i===stepIndex?'>':' ';
+    return `${mark} ${i+1}. ${p.step}${p.result?' → '+p.result.slice(0,150):''}`;
+  }).join('\n');
+  const filesText = Object.keys(task.files).length
+    ? '\n\nCurrent files in workspace:\n' + Object.entries(task.files).slice(0,8).map(([n,c])=>`--- ${n} (${c.length} chars) ---\n${c.slice(0,800)}`).join('\n\n')
+    : '';
+
+  const sys = `You are KAI executing a long-running project autonomously. Goal: ${task.goal}
+
+Project plan (current step marked with >):
+${planSummary}${filesText}
+
+Right now, execute ONLY step ${stepIndex+1}: "${step.step}"
+
+Use your tools to do real work. When the step is genuinely done:
+1. Call project_file_write to save any output to the workspace
+2. Call project_step(id="${task.id}", result="<brief summary of what you did>") to advance
+
+If the step needs multiple sub-actions, do them all in this turn. Don't stop until the step is done. Don't call project_plan again. Don't call project_create. Stay focused on THIS step.`;
+
+  try{
+    const out = await Providers.agenticChat(api.provider, api.key,
+      [{role:'user', content: `Execute step ${stepIndex+1}: ${step.step}`}],
+      sys, KaiWorkspace.TOOLS, (n,a)=>KaiWorkspace.exec(n,a),
+      { maxSteps: 30, max_tokens: 2000 });
+    // If the model didn't call project_step itself, mark the step done with its text reply
+    const taskNow = KaiComputer.get(task.id);
+    if(taskNow && taskNow.currentStep === stepIndex){
+      KaiComputer.markStep(task.id, stepIndex, 'done', (out.text||'(done)').slice(0,500));
+      KaiComputer.appendLog(task.id, 'step', '✓ completed step ' + (stepIndex+1));
+    }
+  }catch(e){
+    KaiComputer.appendLog(task.id, 'error', 'step error: ' + e.message);
+    KaiComputer.markStep(task.id, stepIndex, 'error', e.message.slice(0,200));
+    // Don't kill the whole project — pause it so user can decide
+    KaiComputer.setStatus(task.id, 'paused');
+  }
+}
+
+// Override the project_plan tool's run so that after planning, it automatically attaches the runner
+function wireProjectAutorun(){
+  if(!window.KaiWorkspace || !KaiWorkspace.TOOLS) return;
+  const orig = KaiWorkspace.TOOLS.project_plan.run;
+  KaiWorkspace.TOOLS.project_plan.run = async (args)=>{
+    const r = await orig(args);
+    if(r && r.ok && args.id){
+      // attach the runner that fires every tick
+      KaiComputer.attachRunner(args.id, async (task, stepIdx)=>{
+        await executeProjectStep(task, stepIdx);
+      });
+    }
+    return r;
+  };
+}
+
 // =========== AMBIENT THINKING ===========
 // Runs every N minutes. KAI scans his world, decides if anything is worth telling Kai.
 async function ambientThink(){
