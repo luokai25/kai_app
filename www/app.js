@@ -62,12 +62,29 @@ function setStatus(text, ok, err){
 
 // ---- render messages ----
 function esc(s){ return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function linkify(text){
+  // Convert URLs to clickable links, with special styling for Supabase artifact URLs
+  const escaped = esc(text);
+  return escaped.replace(/(https?:\/\/[^\s<]+)/g, (url)=>{
+    const isArtifact = url.includes('/storage/v1/object/public/kai-artifacts/');
+    // pull the filename from end of artifact URL for a nice label
+    if(isArtifact){
+      const m = url.match(/\d+_([^/]+)$/);
+      const fname = m ? m[1] : 'file';
+      const ext = (fname.split('.').pop()||'').toLowerCase();
+      const icon = ext==='pdf'?'📄':ext==='md'?'📝':ext==='html'?'🌐':ext==='json'?'⚙️':ext==='csv'?'📊':'📎';
+      return `<a href="${url}" target="_blank" rel="noopener" class="artifact">${icon} ${esc(fname)}</a>`;
+    }
+    return `<a href="${url}" target="_blank" rel="noopener" style="color:var(--gold);text-decoration:underline">${esc(url.length>50?url.slice(0,47)+'…':url)}</a>`;
+  });
+}
 function renderMessages(msgs){
   const c = $('msgs');
   c.innerHTML = msgs.map(m=>{
     const klass = m.role === 'user' ? 'me' : 'kai';
+    const body = m.role === 'user' ? esc(m.text) : linkify(m.text);
     const used = (m.meta?.used?.length) ? `<div class="used">used: ${esc(m.meta.used.join(', '))}</div>` : '';
-    return `<div class="msg ${klass}">${esc(m.text)}${used}</div>`;
+    return `<div class="msg ${klass}">${body}${used}</div>`;
   }).join('');
   c.scrollTop = c.scrollHeight;
 }
@@ -101,20 +118,78 @@ async function send(){
   $('sendBtn').disabled = true;
 
   // optimistic render
-  const msgs = chatsCache.find(c=>c.id===currentChatId)?._cached_msgs || [];
-  msgs.push({role:'user', text});
-  msgs.push({role:'kai', text:'…thinking', _t:1});
-  renderMessages(msgs);
+  const localMsgs = [];
+  try{
+    // load existing messages first
+    if(currentChatId){
+      const d = await api('/messages?chat_id='+currentChatId);
+      (d.messages||[]).forEach(m=>localMsgs.push(m));
+    }
+  }catch{}
+  localMsgs.push({role:'user', text});
+  const placeholderIdx = localMsgs.length;
+  localMsgs.push({role:'kai', text:'…', _streaming:true});
+  renderMessages(localMsgs);
 
   try{
-    const d = await api('/chat', { method:'POST', body: { chat_id: currentChatId, text } });
-    currentChatId = d.chat_id;
-    await loadCurrentChat();
+    // Use streaming endpoint if available, fall back to /chat
+    const headers = {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + ANON_KEY,
+      'x-device-id': state.deviceId,
+      'x-device-secret': state.devSecret,
+    };
+    const res = await fetch(state.server + '/chat/stream', {
+      method: 'POST', headers,
+      body: JSON.stringify({ chat_id: currentChatId, text }),
+    });
+    if(!res.ok){
+      // fall back to non-streaming
+      const errData = await res.json().catch(()=>({}));
+      throw new Error(errData.error || ('HTTP '+res.status));
+    }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let accumulated = '';
+    while(true){
+      const {done, value} = await reader.read();
+      if(done) break;
+      buffer += decoder.decode(value, {stream:true});
+      // SSE format: data: {...} (per event)
+      const events = buffer.split('\n\n');
+      buffer = events.pop() || '';
+      for(const ev of events){
+        const line = ev.replace(/^data:\s*/, '').trim();
+        if(!line) continue;
+        try{
+          const evt = JSON.parse(line);
+          if(evt.type === 'chat_id') currentChatId = evt.chat_id;
+          else if(evt.type === 'delta'){
+            accumulated += evt.text;
+            localMsgs[placeholderIdx] = {role:'kai', text: accumulated, _streaming:true};
+            renderMessages(localMsgs);
+          }
+          else if(evt.type === 'tools'){
+            // remember which tools were used to show under final message
+            localMsgs[placeholderIdx].meta = {used: evt.used};
+          }
+          else if(evt.type === 'done'){
+            localMsgs[placeholderIdx] = {role:'kai', text: evt.reply, meta:{used: evt.used||[]}};
+            renderMessages(localMsgs);
+          }
+          else if(evt.type === 'error'){
+            throw new Error(evt.error || 'stream error');
+          }
+        }catch(e){
+          if(e.message && !e.message.includes('JSON')) throw e;
+        }
+      }
+    }
     await loadChatList();
   }catch(e){
-    msgs.pop();
-    msgs.push({role:'kai', text:'⚠ '+e.message});
-    renderMessages(msgs);
+    localMsgs[placeholderIdx] = {role:'kai', text:'⚠ '+e.message};
+    renderMessages(localMsgs);
   }finally{
     $('sendBtn').disabled = false;
   }
