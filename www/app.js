@@ -312,6 +312,166 @@ async function addNote(){
   catch(e){ alert(e.message); }
 }
 
+
+// ===== VOICE: record audio, send to /chat/voice, play reply =====
+let mediaRecorder = null;
+let audioChunks = [];
+let recordingStream = null;
+let isRecording = false;
+
+async function startRecording(){
+  if(isRecording) return;
+  if(!state.deviceId){ alert('Connect to KAI server first'); return; }
+  try{
+    recordingStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  }catch(e){
+    alert('Mic permission denied or unavailable: ' + e.message);
+    return;
+  }
+  audioChunks = [];
+  // Prefer webm/opus (smaller, faster); fall back to whatever the browser supports
+  const mimeOptions = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg'];
+  let mimeType = '';
+  for(const t of mimeOptions){
+    if(MediaRecorder.isTypeSupported(t)){ mimeType = t; break; }
+  }
+  mediaRecorder = new MediaRecorder(recordingStream, mimeType ? { mimeType } : {});
+  mediaRecorder.ondataavailable = e => { if(e.data.size > 0) audioChunks.push(e.data); };
+  mediaRecorder.start();
+  isRecording = true;
+  $('micBtn').classList.add('recording');
+  $('voiceOverlay').classList.add('on');
+  $('voStatus').textContent = 'listening…';
+}
+
+async function stopRecording(send){
+  if(!isRecording || !mediaRecorder) return;
+  return new Promise((resolve)=>{
+    mediaRecorder.onstop = async ()=>{
+      // Stop all tracks to release the mic
+      if(recordingStream){ recordingStream.getTracks().forEach(t=>t.stop()); recordingStream = null; }
+      $('micBtn').classList.remove('recording');
+      isRecording = false;
+      if(!send || audioChunks.length === 0){
+        $('voiceOverlay').classList.remove('on');
+        resolve();
+        return;
+      }
+      const blob = new Blob(audioChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+      audioChunks = [];
+      $('voStatus').textContent = 'transcribing…';
+      try{
+        await sendVoice(blob);
+      }catch(e){
+        $('voStatus').textContent = 'error: ' + e.message;
+        setTimeout(()=>$('voiceOverlay').classList.remove('on'), 2000);
+      }
+      resolve();
+    };
+    mediaRecorder.stop();
+  });
+}
+
+async function sendVoice(audioBlob){
+  // Post raw audio to /chat/voice
+  const headers = {
+    'Authorization': 'Bearer ' + ANON_KEY,
+    'x-device-id': state.deviceId,
+    'x-device-secret': state.devSecret,
+    'Content-Type': audioBlob.type || 'audio/webm',
+  };
+  if(currentChatId) headers['x-chat-id'] = currentChatId;
+
+  const res = await fetch(state.server + '/chat/voice', {
+    method: 'POST',
+    headers,
+    body: audioBlob,
+  });
+  const data = await res.json();
+  if(!res.ok || data.error) throw new Error(data.error || ('HTTP ' + res.status));
+
+  currentChatId = data.chat_id;
+  $('voStatus').textContent = 'speaking…';
+
+  // Refresh the chat view so user sees what they said + KAI's reply
+  await loadCurrentChat();
+  await loadChatList();
+
+  // Play the reply
+  if(data.audio_url){
+    // OpenAI TTS — play the mp3
+    const audio = new Audio(data.audio_url);
+    audio.onended = ()=>$('voiceOverlay').classList.remove('on');
+    audio.onerror = ()=>{ $('voiceOverlay').classList.remove('on'); fallbackTTS(data.reply); };
+    try{ await audio.play(); }
+    catch(e){ $('voiceOverlay').classList.remove('on'); fallbackTTS(data.reply); }
+  } else if(data.reply){
+    // Fall back to browser speechSynthesis
+    fallbackTTS(data.reply);
+  } else {
+    $('voiceOverlay').classList.remove('on');
+  }
+}
+
+function fallbackTTS(text){
+  if(!('speechSynthesis' in window)){
+    $('voiceOverlay').classList.remove('on');
+    return;
+  }
+  const u = new SpeechSynthesisUtterance(text);
+  // Pick a decent voice — prefer something male if available
+  const voices = speechSynthesis.getVoices();
+  const preferred = voices.find(v=>/male|onyx|deep/i.test(v.name)) || voices.find(v=>v.lang.startsWith('en'));
+  if(preferred) u.voice = preferred;
+  u.rate = 1.0;
+  u.pitch = 0.95;
+  u.onend = ()=>$('voiceOverlay').classList.remove('on');
+  u.onerror = ()=>$('voiceOverlay').classList.remove('on');
+  speechSynthesis.speak(u);
+}
+
+function wireMic(){
+  const btn = $('micBtn');
+  if(!btn) return;
+  // Touch (mobile): hold to record, release to send
+  let touchActive = false;
+  btn.addEventListener('touchstart', e => {
+    e.preventDefault();
+    touchActive = true;
+    startRecording();
+  });
+  btn.addEventListener('touchend', e => {
+    e.preventDefault();
+    if(touchActive){ touchActive = false; stopRecording(true); }
+  });
+  btn.addEventListener('touchcancel', e => {
+    if(touchActive){ touchActive = false; stopRecording(false); }
+  });
+  // Click (desktop testing): toggle
+  btn.addEventListener('click', e => {
+    if(touchActive) return;  // touch handled it
+    if(isRecording) stopRecording(true);
+    else startRecording();
+  });
+  // Tap overlay to cancel
+  $('voiceOverlay').addEventListener('click', ()=>{
+    if(isRecording) stopRecording(false);
+    else $('voiceOverlay').classList.remove('on');
+  });
+}
+
+async function saveOpenAIKey(){
+  const key = $('openaiKey').value.trim();
+  if(!key){ alert('paste a key first'); return; }
+  if(!state.deviceId){ alert('connect first'); return; }
+  try{
+    await api('/set-key', { method:'POST', body:{ openai_key: key } });
+    alert('OpenAI key saved ✓');
+    $('openaiKey').value = '';
+    checkServer();
+  }catch(e){ alert('failed: ' + e.message); }
+}
+
 // ---- boot ----
 function init(){
   // wire buttons
@@ -335,6 +495,8 @@ function init(){
   $('addNote').onclick = addNote;
   $('cClose').onclick = closeAll;
   $('cRefresh').onclick = ()=>{ loadProjects(); renderProj(); };
+  if($('saveOpenAIKey')) $('saveOpenAIKey').onclick = saveOpenAIKey;
+  wireMic();
 
   // close panels by scrim
   ['scrimL','scrimS','scrimC','scrimN'].forEach(id=>$(id).onclick = closeAll);

@@ -32,6 +32,16 @@
   .composer textarea{flex:1;resize:none;max-height:120px;min-height:44px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;color:var(--ink);padding:11px;font-size:15px;outline:none;font-family:inherit}
   .send{width:44px;height:44px;border-radius:10px;border:none;background:var(--gold);color:#0a0a0a;font-size:18px;cursor:pointer}
   .send:disabled{opacity:0.5}
+  .mic{width:44px;height:44px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--gold);font-size:18px;cursor:pointer;-webkit-user-select:none;user-select:none}
+  .mic.recording{background:#ff4444;color:#fff;border-color:#ff4444;animation:pulse 1s ease-in-out infinite}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(255,68,68,.6)}50%{box-shadow:0 0 0 12px rgba(255,68,68,0)}}
+  .voice-overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);display:none;align-items:center;justify-content:center;z-index:100;backdrop-filter:blur(8px)}
+  .voice-overlay.on{display:flex}
+  .vo-inner{text-align:center}
+  .vo-pulse{width:120px;height:120px;border-radius:50%;background:var(--gold);margin:0 auto 20px;animation:bigpulse 1.2s ease-in-out infinite}
+  @keyframes bigpulse{0%,100%{transform:scale(1);opacity:.9}50%{transform:scale(1.15);opacity:1}}
+  .vo-status{font-family:var(--font);font-size:28px;color:var(--gold);letter-spacing:2px;margin-bottom:10px}
+  .vo-hint{font-size:13px;color:var(--dim);text-transform:uppercase;letter-spacing:2px}
   .modepill{font-size:10px;letter-spacing:1px;color:var(--dim);text-align:center;padding:3px;background:var(--panel)}
 
   /* sliding panels */
@@ -86,7 +96,15 @@
   <div class="modepill" id="modepill">connecting…</div>
   <div class="composer">
     <textarea id="input" placeholder="message kai…" rows="1"></textarea>
+    <button class="mic" id="micBtn" title="hold to talk">🎙</button>
     <button class="send" id="sendBtn">↑</button>
+  </div>
+  <div class="voice-overlay" id="voiceOverlay">
+    <div class="vo-inner">
+      <div class="vo-pulse"></div>
+      <div class="vo-status" id="voStatus">listening…</div>
+      <div class="vo-hint">release to send</div>
+    </div>
   </div>
 </div>
 
@@ -120,6 +138,10 @@
   </div>
   <div class="field"><label>API key</label><input id="apiKey" type="password" placeholder="gsk_... or sk-..."></div>
   <div class="btn-row"><button class="tm-btn primary" id="saveKey">Save key on server</button></div>
+  <div class="sec">Voice TTS (optional)</div>
+  <div class="field"><label>OpenAI key (for natural-sounding voice replies — uses tts-1, ~$0.015/1k chars)</label><input id="openaiKey" type="password" placeholder="sk-..."></div>
+  <div class="btn-row"><button class="tm-btn primary" id="saveOpenAIKey">Save OpenAI key</button></div>
+  <div class="field"><label style="font-size:11px;color:var(--dim)">Without OpenAI key, voice replies use your phone's built-in TTS (free, more robotic).</label></div>
   <div class="field"><label>Danger zone</label></div>
   <div class="btn-row"><button class="tm-btn danger" id="forgetDev">Forget this device</button></div>
 </div>
