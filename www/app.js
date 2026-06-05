@@ -84,7 +84,8 @@ function renderMessages(msgs){
     const klass = m.role === 'user' ? 'me' : 'kai';
     const body = m.role === 'user' ? esc(m.text) : linkify(m.text);
     const used = (m.meta?.used?.length) ? `<div class="used">used: ${esc(m.meta.used.join(', '))}</div>` : '';
-    return `<div class="msg ${klass}">${body}${used}</div>`;
+    const imgs = (m.meta?.image_urls?.length) ? `<div class="imgs">${m.meta.image_urls.map(u=>`<img src="${esc(u)}" onclick="window.open('${esc(u)}','_blank')">`).join('')}</div>` : '';
+    return `<div class="msg ${klass}">${imgs}${body}${used}</div>`;
   }).join('');
   c.scrollTop = c.scrollHeight;
 }
@@ -112,7 +113,7 @@ async function loadChatList(){
 async function send(){
   const inp = $('input');
   const text = (inp.value || '').trim();
-  if(!text) return;
+  if(!text && !pendingImages.filter(p=>p.url).length) return;
   if(!state.deviceId){ alert('Connect to KAI server first (menu → Setup)'); return; }
   inp.value = ''; inp.style.height = '44px';
   $('sendBtn').disabled = true;
@@ -141,7 +142,7 @@ async function send(){
     };
     const res = await fetch(state.server + '/chat/stream', {
       method: 'POST', headers,
-      body: JSON.stringify({ chat_id: currentChatId, text }),
+      body: JSON.stringify({ chat_id: currentChatId, text, image_urls: pendingImages.filter(p=>p.url).map(p=>p.url) }),
     });
     if(!res.ok){
       // fall back to non-streaming
@@ -187,6 +188,8 @@ async function send(){
       }
     }
     await loadChatList();
+    pendingImages = [];
+    renderAttachPreview();
   }catch(e){
     localMsgs[placeholderIdx] = {role:'kai', text:'⚠ '+e.message};
     renderMessages(localMsgs);
@@ -312,6 +315,61 @@ async function addNote(){
   catch(e){ alert(e.message); }
 }
 
+
+
+// ===== IMAGES: pick, upload, attach to next message =====
+let pendingImages = [];  // [{url, name, localPreview}]
+
+function renderAttachPreview(){
+  const wrap = $('attachPreview');
+  if(!pendingImages.length){ wrap.classList.remove('on'); wrap.innerHTML=''; return; }
+  wrap.classList.add('on');
+  wrap.innerHTML = pendingImages.map((p, i)=>`
+    <div class="thumb ${p.uploading?'uploading':''}">
+      <img src="${p.localPreview}">
+      <button class="rm" onclick="window._removeImg(${i})">×</button>
+    </div>
+  `).join('');
+}
+window._removeImg = (idx)=>{ pendingImages.splice(idx, 1); renderAttachPreview(); };
+
+async function pickImages(files){
+  if(!state.deviceId){ alert('Connect to KAI server first'); return; }
+  if(!files || !files.length) return;
+  // Cap at 5 images per turn (Llama 4 Scout's limit)
+  const room = 5 - pendingImages.length;
+  if(room <= 0){ alert('Max 5 images at a time'); return; }
+  const list = Array.from(files).slice(0, room);
+  for(const file of list){
+    if(!file.type.startsWith('image/')){ continue; }
+    if(file.size > 10 * 1024 * 1024){ alert(`${file.name} too large (>10MB)`); continue; }
+    const localPreview = URL.createObjectURL(file);
+    const entry = { url: null, name: file.name, localPreview, uploading: true };
+    pendingImages.push(entry);
+    renderAttachPreview();
+    // Upload
+    try{
+      const headers = {
+        'Authorization': 'Bearer ' + ANON_KEY,
+        'x-device-id': state.deviceId,
+        'x-device-secret': state.devSecret,
+        'Content-Type': file.type,
+        'x-image-name': file.name.replace(/[^a-zA-Z0-9._-]/g,'_'),
+      };
+      const res = await fetch(state.server + '/upload-image', { method:'POST', headers, body: file });
+      const data = await res.json();
+      if(!res.ok || !data.url) throw new Error(data.error || 'upload failed');
+      entry.url = data.url;
+      entry.uploading = false;
+      renderAttachPreview();
+    }catch(e){
+      const idx = pendingImages.indexOf(entry);
+      if(idx >= 0) pendingImages.splice(idx, 1);
+      renderAttachPreview();
+      alert('upload failed: ' + e.message);
+    }
+  }
+}
 
 // ===== VOICE: record audio, send to /chat/voice, play reply =====
 let mediaRecorder = null;
@@ -497,6 +555,8 @@ function init(){
   $('cRefresh').onclick = ()=>{ loadProjects(); renderProj(); };
   if($('saveOpenAIKey')) $('saveOpenAIKey').onclick = saveOpenAIKey;
   wireMic();
+  $('imgBtn').onclick = ()=>$('imgPicker').click();
+  $('imgPicker').onchange = (e)=>{ pickImages(e.target.files); e.target.value=''; };
 
   // close panels by scrim
   ['scrimL','scrimS','scrimC','scrimN'].forEach(id=>$(id).onclick = closeAll);
