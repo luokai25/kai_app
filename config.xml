@@ -15,7 +15,7 @@
     <preference name="AndroidInsecureFileModeEnabled" value="true" />
     <platform name="android">
         <preference name="AndroidWindowSplashScreenBackground" value="#0f0e0c" />
-        <config-file target="AndroidManifest.xml" parent="/manifest">
+        <config-file target="AndroidManifest.xml" parent="/manifest" xmlns:android="http://schemas.android.com/apk/res/android">
             <uses-permission android:name="android.permission.RECORD_AUDIO" />
             <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
         </config-file>
