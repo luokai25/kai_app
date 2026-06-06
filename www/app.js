@@ -44,14 +44,17 @@ async function api(path, opts){
 }
 
 // ---- server status ----
+let lastPingData = null;
 async function checkServer(){
   try{
     if(!state.kaiKey){ setStatus('not connected', false); return false; }
     const d = await api('/ping');
+    lastPingData = d;
     const provLabel = d.provider === 'kai_builtin' ? 'KAI AI' : (d.provider || 'no provider');
     const keyOk = d.provider === 'kai_builtin' ? d.has_builtin_ai : (d.has_groq || d.has_hf || d.has_openai || d.has_cerebras || d.has_mistral);
-    setStatus(keyOk ? `connected · ${provLabel}` : `connected · set a key`, keyOk || true);
+    setStatus(keyOk ? `${provLabel} ·  ready` : `${provLabel} · set a key`, keyOk || true);
     updateBuiltinStatus(d);
+    renderModelPicker(d);
     return true;
   }catch(e){
     setStatus('disconnected: '+e.message, false, true);
@@ -208,7 +211,111 @@ function closeAll(){
   ['scrimL','panelL','scrimS','panelS','scrimC','panelC','scrimN','panelN'].forEach(id=>$(id)?.classList.remove('on'));
 }
 
-// ---- KAI built-in AI activation ----
+// ---- model registry ----
+// Add more models here as we wire them. provider must exist in PROVIDERS on the server.
+const MODELS = [
+  {
+    id: 'kai_builtin',
+    name: 'Qwen 2.5 7B',
+    icon: '✦',
+    desc: 'KAI Built-in · Apache 2.0 · free, always connected',
+    provider: 'kai_builtin',
+    needsKey: false,
+  },
+  {
+    id: 'groq_llama',
+    name: 'Llama 3.3 70B',
+    icon: '⚡',
+    desc: 'Groq · fastest inference · free tier · needs Groq key',
+    provider: 'groq',
+    needsKey: true,
+    keyHint: 'Groq key required (console.groq.com/keys)',
+  },
+  {
+    id: 'hf_llama',
+    name: 'Llama 3.3 70B (HF)',
+    icon: '🤗',
+    desc: 'HuggingFace Providers · free tier · needs HF token',
+    provider: 'hf',
+    needsKey: true,
+    keyHint: 'HF token required (huggingface.co/settings/tokens)',
+  },
+  {
+    id: 'cerebras_llama',
+    name: 'Llama 3.3 70B (Cerebras)',
+    icon: '🧠',
+    desc: 'Cerebras · fast free tier · needs Cerebras key',
+    provider: 'cerebras',
+    needsKey: true,
+    keyHint: 'Cerebras key required (cloud.cerebras.ai)',
+  },
+];
+
+function renderModelPicker(pingData){
+  const dropdown = $('modelDropdown');
+  const pill = $('modelPill');
+  const pillName = $('modelPillName');
+  const currentProvider = pingData?.provider || state.activeProvider || 'kai_builtin';
+
+  // Find current model
+  const current = MODELS.find(m => m.provider === currentProvider) || MODELS[0];
+  pillName.textContent = current.name;
+  pill.classList.toggle('active', currentProvider === 'kai_builtin' && (pingData?.has_builtin_ai));
+
+  // Render dropdown items
+  dropdown.innerHTML = '<div class="md-title">Choose model</div>';
+  for(const m of MODELS){
+    const isSelected = m.provider === currentProvider;
+    const available = !m.needsKey ||
+      (m.provider === 'groq' && pingData?.has_groq) ||
+      (m.provider === 'hf' && pingData?.has_hf) ||
+      (m.provider === 'cerebras' && pingData?.has_cerebras) ||
+      (m.provider === 'mistral' && pingData?.has_mistral) ||
+      (m.provider === 'openai' && pingData?.has_openai) ||
+      (m.provider === 'kai_builtin' && pingData?.has_builtin_ai);
+    const row = document.createElement('div');
+    row.className = 'md-item' + (isSelected ? ' selected' : '');
+    row.innerHTML = `<span class="mi-icon">${m.icon}</span><div class="mi-info"><div class="mi-name">${esc(m.name)}${available?'':' 🔒'}</div><div class="mi-desc">${esc(m.desc)}</div></div>${isSelected?'<span class="mi-check">✓</span>':''}`;
+    row.onclick = () => selectModel(m, pingData);
+    dropdown.appendChild(row);
+  }
+}
+
+async function selectModel(model, pingData){
+  closeModelPicker();
+  if(model.needsKey){
+    const has = (model.provider === 'groq' && pingData?.has_groq) ||
+                (model.provider === 'hf' && pingData?.has_hf) ||
+                (model.provider === 'cerebras' && pingData?.has_cerebras) ||
+                (model.provider === 'openai' && pingData?.has_openai);
+    if(!has){
+      alert(`${model.name} needs a ${model.provider} key.\n\n${model.keyHint||''}\n\nGo to Setup → paste your key there.`);
+      return;
+    }
+  }
+  if(model.provider === 'kai_builtin' && !pingData?.has_builtin_ai){
+    alert('KAI Built-in AI not activated yet.\nGo to Setup → paste your HF token to activate it.');
+    return;
+  }
+  state.activeProvider = model.provider;
+  persist();
+  try{
+    await api('/set-key', { method:'POST', body:{ provider: model.provider } });
+    $('modelPillName').textContent = model.name;
+    setStatus('model: ' + model.name, true);
+  }catch(e){
+    alert('Failed to switch model: ' + e.message);
+  }
+}
+
+function openModelPicker(){
+  $('modelDropdown').classList.add('open');
+  $('modelScrim').classList.add('on');
+}
+function closeModelPicker(){
+  $('modelDropdown').classList.remove('open');
+  $('modelScrim').classList.remove('on');
+}
 async function activateBuiltin(){
   const token = $('builtinHfToken').value.trim();
   if(!token.startsWith('hf_')){ alert('Must start with hf_ — get from huggingface.co/settings/tokens'); return; }
@@ -606,6 +713,15 @@ function init(){
     testKey();
   };
   $('goNotes').onclick = ()=>{ openP('scrimN','panelN'); loadNotes(); };
+  // Default to KAI built-in provider on first launch
+  if(!state.activeProvider) state.activeProvider = 'kai_builtin';
+
+  $('modelPill').onclick = () => {
+    renderModelPicker(lastPingData);
+    openModelPicker();
+  };
+  $('modelScrim').onclick = closeModelPicker;
+
   $('saveKaiKey').onclick = saveKaiKey;
   $('testKey').onclick = testKey;
   $('saveKey').onclick = saveProviderKey;

@@ -54,7 +54,31 @@
   .vo-hint{font-size:13px;color:var(--dim);text-transform:uppercase;letter-spacing:2px}
   .modepill{font-size:10px;letter-spacing:1px;color:var(--dim);text-align:center;padding:3px;background:var(--panel)}
 
-  /* sliding panels */
+  /* model picker bar */
+  .model-bar{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;padding:4px 10px;background:var(--panel);border-top:1px solid var(--line)}
+  .model-pill{display:flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;border:1px solid var(--line);background:var(--panel2);cursor:pointer;font-size:12px;color:var(--ink);user-select:none;-webkit-user-select:none;transition:border-color .15s}
+  .model-pill:active{border-color:var(--gold)}
+  .model-pill .micon{font-size:14px}
+  .model-pill .mname{color:var(--ink);font-weight:500;letter-spacing:.3px}
+  .model-pill .mchev{color:var(--dim);font-size:10px}
+  .model-pill.active{border-color:var(--gold);color:var(--gold)}
+  .model-pill.active .mname{color:var(--gold)}
+  .mpill-status{font-size:10px;color:var(--dim);letter-spacing:.5px}
+  /* model dropdown */
+  .model-dropdown{position:fixed;bottom:0;left:0;right:0;background:var(--panel);border-top:1px solid var(--line);border-radius:20px 20px 0 0;z-index:60;padding:8px 0 calc(8px + env(safe-area-inset-bottom));transform:translateY(100%);transition:transform .25s cubic-bezier(.4,0,.2,1)}
+  .model-dropdown.open{transform:translateY(0)}
+  .model-dropdown .md-title{padding:10px 16px 6px;font-size:11px;text-transform:uppercase;letter-spacing:2px;color:var(--dim)}
+  .model-dropdown .md-item{display:flex;align-items:center;gap:12px;padding:12px 16px;cursor:pointer;border-bottom:1px solid var(--line)}
+  .model-dropdown .md-item:last-child{border-bottom:none}
+  .model-dropdown .md-item:active{background:var(--panel2)}
+  .model-dropdown .md-item.selected{background:rgba(255,217,107,.08)}
+  .model-dropdown .md-item .mi-icon{font-size:20px;width:32px;text-align:center}
+  .model-dropdown .md-item .mi-info{flex:1}
+  .model-dropdown .md-item .mi-name{font-size:14px;font-weight:600;color:var(--ink)}
+  .model-dropdown .md-item .mi-desc{font-size:11px;color:var(--dim);margin-top:1px}
+  .model-dropdown .md-item .mi-check{color:var(--gold);font-size:18px}
+  .model-scrim{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:59;display:none}
+  .model-scrim.on{display:block}
   .scrim{position:fixed;inset:0;background:rgba(0,0,0,.55);opacity:0;pointer-events:none;transition:.25s;z-index:40}
   .scrim.on{opacity:1;pointer-events:auto}
   .panel{position:fixed;top:0;bottom:0;width:88%;max-width:380px;background:var(--panel);z-index:50;transition:transform .28s cubic-bezier(.4,0,.2,1);display:flex;flex-direction:column}
@@ -103,7 +127,19 @@
     <button class="iconbtn" id="newChatBtn">+</button>
   </div>
   <div class="msgs" id="msgs"></div>
-  <div class="modepill" id="modepill">connecting…</div>
+  <div class="model-bar">
+    <div class="model-pill" id="modelPill">
+      <span class="micon">✦</span>
+      <span class="mname" id="modelPillName">Qwen 2.5 7B</span>
+      <span class="mchev">▾</span>
+    </div>
+    <div class="mpill-status" id="modepill">connecting…</div>
+  </div>
+  <div class="model-scrim" id="modelScrim"></div>
+  <div class="model-dropdown" id="modelDropdown">
+    <div class="md-title">Choose model</div>
+    <!-- items injected by JS -->
+  </div>
   <div id="attachPreview" class="attach-preview"></div>
   <div class="composer">
     <input type="file" id="imgPicker" accept="image/*" style="display:none" multiple>
