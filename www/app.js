@@ -4,11 +4,14 @@
 
 const DEFAULT_SERVER = 'https://hpjvnohzhpkopisfaemz.supabase.co/functions/v1/kai-brain';
 const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhwanZub2h6aHBrb3Bpc2ZhZW16Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2MDU5NTcsImV4cCI6MjA5NjE4MTk1N30.f_FubOdzFCLejJGvf-1WNzRLhe__hKzoh2IX0NcDhqM';
+// Kai's KAI API key — already provisioned, baked in so he doesn't have to enroll
+const DEFAULT_KAI_KEY = 'kai_Om34heIJMU5MIRTXaaeEiHIUzhvnPjXt';
 
 // ---- state, persisted to localStorage ----
 const $ = id => document.getElementById(id);
 let state = JSON.parse(localStorage.getItem('kai_thin') || '{}');
 if(!state.server) state.server = DEFAULT_SERVER;
+if(!state.kaiKey) state.kaiKey = DEFAULT_KAI_KEY;
 if(!state.devSecret){
   // generate one
   const a = new Uint8Array(24); crypto.getRandomValues(a);
@@ -28,8 +31,7 @@ async function api(path, opts){
     'Authorization': 'Bearer ' + ANON_KEY,
     ...(opts.headers || {})
   };
-  if(state.deviceId){ headers['x-device-id'] = state.deviceId; }
-  if(state.devSecret){ headers['x-device-secret'] = state.devSecret; }
+  if(state.kaiKey) headers['x-kai-key'] = state.kaiKey;
   const res = await fetch(state.server + path, {
     method: opts.method || 'GET',
     headers,
@@ -44,7 +46,7 @@ async function api(path, opts){
 // ---- server status ----
 async function checkServer(){
   try{
-    if(!state.deviceId){ setStatus('not connected', false); return false; }
+    if(!state.kaiKey){ setStatus('not connected', false); return false; }
     const d = await api('/ping');
     setStatus(d.has_key ? `connected · ${d.provider}` : 'connected · no key', true);
     return true;
@@ -114,7 +116,7 @@ async function send(){
   const inp = $('input');
   const text = (inp.value || '').trim();
   if(!text && !pendingImages.filter(p=>p.url).length) return;
-  if(!state.deviceId){ alert('Connect to KAI server first (menu → Setup)'); return; }
+  if(!state.kaiKey){ alert('Set your KAI API key first (menu → Setup)'); return; }
   inp.value = ''; inp.style.height = '44px';
   $('sendBtn').disabled = true;
 
@@ -137,8 +139,7 @@ async function send(){
     const headers = {
       'Content-Type': 'application/json',
       'Authorization': 'Bearer ' + ANON_KEY,
-      'x-device-id': state.deviceId,
-      'x-device-secret': state.devSecret,
+      'x-kai-key': state.kaiKey,
     };
     const res = await fetch(state.server + '/chat/stream', {
       method: 'POST', headers,
@@ -205,23 +206,23 @@ function closeAll(){
 }
 
 // ---- setup panel ----
-async function doEnroll(){
-  state.server = ($('srvUrl').value || DEFAULT_SERVER).trim();
+async function saveKaiKey(){
+  const k = $('kaiKeyInput').value.trim();
+  if(!k.startsWith('kai_')){ alert('Should start with kai_'); return; }
+  state.kaiKey = k;
   persist();
-  $('enrollStat').textContent = 'enrolling…';
+  $('enrollStat').innerHTML = `<span style="color:var(--good)">saving…</span>`;
+  await checkServer();
+}
+async function testKey(){
+  if(!state.kaiKey){ alert('Set a key first'); return; }
+  $('enrollStat').innerHTML = 'testing…';
   try{
-    const d = await fetch(state.server + '/enroll', {
-      method:'POST',
-      headers:{'Content-Type':'application/json', 'Authorization':'Bearer '+ANON_KEY},
-      body: JSON.stringify({ device_name:'phone', device_secret: state.devSecret })
-    }).then(r=>r.json());
-    if(d.device_id){
-      state.deviceId = d.device_id;
-      persist();
-      $('enrollStat').innerHTML = `<span style="color:var(--good)">✓ connected · device ${d.device_id.slice(0,8)}…</span>`;
-      checkServer();
+    const r = await api('/ping');
+    if(r.ok){
+      $('enrollStat').innerHTML = `<span style="color:var(--good)">✓ ${esc(r.device||'connected')} · ${esc(r.provider||'no provider')} · ${r.has_groq?'groq✓':''} ${r.has_hf?'hf✓':''} ${r.has_openai?'openai✓':''}</span>`;
     } else {
-      $('enrollStat').innerHTML = `<span style="color:var(--bad)">⚠ ${esc(d.error||'failed')}</span>`;
+      $('enrollStat').innerHTML = `<span style="color:var(--bad)">⚠ ${esc(r.error||'failed')}</span>`;
     }
   }catch(e){
     $('enrollStat').innerHTML = `<span style="color:var(--bad)">⚠ ${esc(e.message)}</span>`;
@@ -231,13 +232,40 @@ async function saveProviderKey(){
   const key = $('apiKey').value.trim();
   const prov = $('provSel').value;
   if(!key){ alert('paste a key first'); return; }
-  if(!state.deviceId){ alert('connect first'); return; }
+  if(!state.kaiKey){ alert('Set your KAI API key first'); return; }
   try{
-    await api('/set-key', { method:'POST', body:{ groq_key: key, groq_provider: prov } });
-    alert('saved on server ✓');
+    const body = { provider: prov };
+    if(prov === 'groq') body.groq_key = key;
+    else if(prov === 'hf') body.hf_key = key;
+    else if(prov === 'openai') body.openai_key = key;
+    // Pass provider key under the matching column name
+    await api('/set-key', { method:'POST', body });
+    alert(prov+' key saved ✓');
     $('apiKey').value = '';
     checkServer();
   }catch(e){ alert('failed: '+e.message); }
+}
+async function testProvider(){
+  if(!state.kaiKey){ alert('Set KAI key first'); return; }
+  const prov = $('provSel').value;
+  const key = $('apiKey').value.trim();
+  try{
+    const r = await api('/test-provider', { method:'POST', body:{ provider: prov, key: key || undefined } });
+    if(r.ok) alert(`✓ ${r.provider} works\nmodel: ${r.model}\nreply: ${r.reply||'(empty)'}`);
+    else alert(`✗ ${r.provider} failed:\n${r.error}`);
+  }catch(e){ alert('test failed: '+e.message); }
+}
+// Update provider hint based on selection
+function updateProvHint(){
+  const sel = $('provSel');
+  if(!sel) return;
+  const hints = {
+    groq: 'Get free Groq key (recommended): console.groq.com/keys — 14,400 req/day free.',
+    hf: 'Get free HF token: huggingface.co/settings/tokens — needs Read access. Free tier varies by model.',
+    cerebras: 'Get free Cerebras key: cloud.cerebras.ai — generous free tier.',
+    mistral: 'Get free Mistral key: console.mistral.ai — free tier on small models.',
+  };
+  $('provHint').textContent = hints[sel.value] || '';
 }
 
 // ---- KAI Computer panel ----
@@ -334,7 +362,7 @@ function renderAttachPreview(){
 window._removeImg = (idx)=>{ pendingImages.splice(idx, 1); renderAttachPreview(); };
 
 async function pickImages(files){
-  if(!state.deviceId){ alert('Connect to KAI server first'); return; }
+  if(!state.kaiKey){ alert('Set your KAI API key first'); return; }
   if(!files || !files.length) return;
   // Cap at 5 images per turn (Llama 4 Scout's limit)
   const room = 5 - pendingImages.length;
@@ -351,8 +379,7 @@ async function pickImages(files){
     try{
       const headers = {
         'Authorization': 'Bearer ' + ANON_KEY,
-        'x-device-id': state.deviceId,
-        'x-device-secret': state.devSecret,
+        'x-kai-key': state.kaiKey,
         'Content-Type': file.type,
         'x-image-name': file.name.replace(/[^a-zA-Z0-9._-]/g,'_'),
       };
@@ -379,7 +406,7 @@ let isRecording = false;
 
 async function startRecording(){
   if(isRecording) return;
-  if(!state.deviceId){ alert('Connect to KAI server first'); return; }
+  if(!state.kaiKey){ alert('Set your KAI API key first'); return; }
   try{
     recordingStream = await navigator.mediaDevices.getUserMedia({ audio: true });
   }catch(e){
@@ -434,8 +461,7 @@ async function sendVoice(audioBlob){
   // Post raw audio to /chat/voice
   const headers = {
     'Authorization': 'Bearer ' + ANON_KEY,
-    'x-device-id': state.deviceId,
-    'x-device-secret': state.devSecret,
+    'x-kai-key': state.kaiKey,
     'Content-Type': audioBlob.type || 'audio/webm',
   };
   if(currentChatId) headers['x-chat-id'] = currentChatId;
@@ -521,7 +547,7 @@ function wireMic(){
 async function saveOpenAIKey(){
   const key = $('openaiKey').value.trim();
   if(!key){ alert('paste a key first'); return; }
-  if(!state.deviceId){ alert('connect first'); return; }
+  if(!state.kaiKey){ alert('Set your KAI API key first'); return; }
   try{
     await api('/set-key', { method:'POST', body:{ openai_key: key } });
     alert('OpenAI key saved ✓');
@@ -539,16 +565,20 @@ function init(){
   $('goSetup').onclick = ()=>{
     openP('scrimS','panelS');
     $('srvUrl').value = state.server;
-    $('devSecret').value = state.devSecret;
-    $('enrollStat').textContent = state.deviceId ? `connected · device ${state.deviceId.slice(0,8)}…` : 'not connected';
+    $('kaiKeyInput').value = state.kaiKey || '';
+    updateProvHint();
+    testKey();
   };
   $('goNotes').onclick = ()=>{ openP('scrimN','panelN'); loadNotes(); };
-  $('doEnroll').onclick = doEnroll;
+  $('saveKaiKey').onclick = saveKaiKey;
+  $('testKey').onclick = testKey;
   $('saveKey').onclick = saveProviderKey;
+  $('testProv').onclick = testProvider;
+  $('provSel').addEventListener('change', updateProvHint);
   $('forgetDev').onclick = ()=>{
-    if(!confirm('Forget this device? You will need to enroll again, but server data stays.')) return;
-    delete state.deviceId; persist(); checkServer();
-    alert('forgotten — enroll again when ready');
+    if(!confirm('Forget this device? You can paste your key again to reconnect.')) return;
+    delete state.kaiKey; persist(); checkServer();
+    alert('forgotten — paste key again to reconnect');
   };
   $('addNote').onclick = addNote;
   $('cClose').onclick = closeAll;

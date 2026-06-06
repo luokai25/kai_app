@@ -135,27 +135,28 @@
 <div class="scrim" id="scrimS"></div>
 <div class="panel right" id="panelS">
   <h3>Setup</h3>
-  <div class="field"><label>Server URL</label><input id="srvUrl" placeholder="https://...supabase.co/functions/v1/kai-brain"></div>
-  <div class="field"><label>Device secret (≥16 chars, generated for you)</label><input id="devSecret" readonly></div>
-  <div class="field"><label>Status</label><div id="enrollStat" style="font-size:13px;color:var(--dim)">not connected</div></div>
-  <div class="btn-row"><button class="tm-btn primary" id="doEnroll">Connect</button></div>
-  <div class="sec">Provider key (Groq, OpenAI, etc.)</div>
-  <div class="field"><label>Provider</label>
+  <div class="field"><label>Status</label><div id="enrollStat" style="font-size:13px;color:var(--dim)">checking…</div></div>
+  <div class="field"><label>KAI API key (already set for you)</label><input id="kaiKeyInput" type="password" placeholder="kai_..."></div>
+  <div class="btn-row"><button class="tm-btn primary" id="saveKaiKey">Save KAI key</button><button class="tm-btn" id="testKey">Test</button></div>
+  <div class="field"><label style="font-size:11px;color:var(--dim)">This is your one key for talking to KAI server. You don't need anything else if Groq is set up.</label></div>
+
+  <div class="sec">Free model provider</div>
+  <div class="field"><label>Provider for KAI's brain (all free options)</label>
     <select id="provSel">
-      <option value="groq">Groq (recommended — fastest, free tier)</option>
-      <option value="openai">OpenAI</option>
-      <option value="cerebras">Cerebras</option>
-      <option value="mistral">Mistral</option>
-      <option value="anthropic">Anthropic</option>
+      <option value="groq">Groq · Llama 3.3 70B (recommended — fastest, free)</option>
+      <option value="hf">HuggingFace · Llama 3.3 70B (free, via HF Inference Providers)</option>
+      <option value="cerebras">Cerebras · Llama 3.3 70B (free tier)</option>
+      <option value="mistral">Mistral · small-latest (free tier)</option>
     </select>
   </div>
-  <div class="field"><label>API key</label><input id="apiKey" type="password" placeholder="gsk_... or sk-..."></div>
-  <div class="btn-row"><button class="tm-btn primary" id="saveKey">Save key on server</button></div>
-  <div class="sec">Voice TTS (optional)</div>
-  <div class="field"><label>OpenAI key (for natural-sounding voice replies — uses tts-1, ~$0.015/1k chars)</label><input id="openaiKey" type="password" placeholder="sk-..."></div>
-  <div class="btn-row"><button class="tm-btn primary" id="saveOpenAIKey">Save OpenAI key</button></div>
-  <div class="field"><label style="font-size:11px;color:var(--dim)">Without OpenAI key, voice replies use your phone's built-in TTS (free, more robotic).</label></div>
-  <div class="field"><label>Danger zone</label></div>
+  <div class="field"><label>Provider key (paste once, KAI uses it for all chat)</label><input id="apiKey" type="password" placeholder="gsk_... or hf_... or csk-..."></div>
+  <div class="btn-row"><button class="tm-btn primary" id="saveKey">Save provider key</button><button class="tm-btn" id="testProv">Test provider</button></div>
+  <div class="field"><label style="font-size:11px;color:var(--dim)" id="provHint">Get free Groq key: console.groq.com/keys · Get free HF token: huggingface.co/settings/tokens</label></div>
+
+  <div class="sec">Advanced — server URL</div>
+  <div class="field"><label>Server URL</label><input id="srvUrl" placeholder="https://...supabase.co/functions/v1/kai-brain"></div>
+
+  <div class="sec">Danger zone</div>
   <div class="btn-row"><button class="tm-btn danger" id="forgetDev">Forget this device</button></div>
 </div>
 
