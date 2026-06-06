@@ -48,7 +48,10 @@ async function checkServer(){
   try{
     if(!state.kaiKey){ setStatus('not connected', false); return false; }
     const d = await api('/ping');
-    setStatus(d.has_key ? `connected · ${d.provider}` : 'connected · no key', true);
+    const provLabel = d.provider === 'kai_builtin' ? 'KAI AI' : (d.provider || 'no provider');
+    const keyOk = d.provider === 'kai_builtin' ? d.has_builtin_ai : (d.has_groq || d.has_hf || d.has_openai || d.has_cerebras || d.has_mistral);
+    setStatus(keyOk ? `connected · ${provLabel}` : `connected · set a key`, keyOk || true);
+    updateBuiltinStatus(d);
     return true;
   }catch(e){
     setStatus('disconnected: '+e.message, false, true);
@@ -205,6 +208,38 @@ function closeAll(){
   ['scrimL','panelL','scrimS','panelS','scrimC','panelC','scrimN','panelN'].forEach(id=>$(id)?.classList.remove('on'));
 }
 
+// ---- KAI built-in AI activation ----
+async function activateBuiltin(){
+  const token = $('builtinHfToken').value.trim();
+  if(!token.startsWith('hf_')){ alert('Must start with hf_ — get from huggingface.co/settings/tokens'); return; }
+  if(!state.kaiKey){ alert('Set KAI API key first'); return; }
+  $('builtinStatus').innerHTML = '<span style="color:var(--gold)">activating…</span>';
+  try{
+    const r = await api('/set-builtin-key', { method:'POST', body:{ hf_token: token } });
+    if(r.ok){
+      $('builtinStatus').innerHTML = '<span style="color:var(--good)">✓ KAI Built-in AI active — Qwen 2.5 7B ready</span>';
+      $('builtinHfToken').value = '';
+      // Auto-switch to kai_builtin provider
+      if($('provSel')) $('provSel').value = 'kai_builtin';
+      await api('/set-key', { method:'POST', body:{ provider:'kai_builtin' } });
+      alert('✓ KAI Built-in AI activated!\nModel: Qwen 2.5 7B Instruct (Apache 2.0)\nYou can now chat without any provider key.');
+    } else {
+      $('builtinStatus').innerHTML = `<span style="color:var(--bad)">⚠ ${esc(r.error||'failed')}</span>`;
+    }
+  }catch(e){
+    $('builtinStatus').innerHTML = `<span style="color:var(--bad)">⚠ ${esc(e.message)}</span>`;
+  }
+}
+
+async function updateBuiltinStatus(pingData){
+  const el = $('builtinStatus');
+  if(!el) return;
+  if(pingData && pingData.has_builtin_ai){
+    el.innerHTML = `<span style="color:var(--good)">✓ Active — ${esc(pingData.builtin_model||'Qwen 2.5 7B')} ready (no key needed)</span>`;
+  } else {
+    el.innerHTML = '<span style="color:var(--dim)">Not activated yet — paste your HF token below to activate</span>';
+  }
+}
 // ---- setup panel ----
 async function saveKaiKey(){
   const k = $('kaiKeyInput').value.trim();
@@ -260,8 +295,9 @@ function updateProvHint(){
   const sel = $('provSel');
   if(!sel) return;
   const hints = {
+    kai_builtin: '★ KAI Built-in — uses Qwen 2.5 7B Instruct (Apache 2.0). Activate once with your HF token above, then no key needed ever.',
     groq: 'Get free Groq key (recommended): console.groq.com/keys — 14,400 req/day free.',
-    hf: 'Get free HF token: huggingface.co/settings/tokens — needs Read access. Free tier varies by model.',
+    hf: 'Get free HF token: huggingface.co/settings/tokens — needs Read access.',
     cerebras: 'Get free Cerebras key: cloud.cerebras.ai — generous free tier.',
     mistral: 'Get free Mistral key: console.mistral.ai — free tier on small models.',
   };
@@ -575,6 +611,7 @@ function init(){
   $('saveKey').onclick = saveProviderKey;
   $('testProv').onclick = testProvider;
   $('provSel').addEventListener('change', updateProvHint);
+  if($('activateBuiltin')) $('activateBuiltin').onclick = activateBuiltin;
   $('forgetDev').onclick = ()=>{
     if(!confirm('Forget this device? You can paste your key again to reconnect.')) return;
     delete state.kaiKey; persist(); checkServer();

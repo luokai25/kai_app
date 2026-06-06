@@ -140,18 +140,25 @@
   <div class="btn-row"><button class="tm-btn primary" id="saveKaiKey">Save KAI key</button><button class="tm-btn" id="testKey">Test</button></div>
   <div class="field"><label style="font-size:11px;color:var(--dim)">This is your one key for talking to KAI server. You don't need anything else if Groq is set up.</label></div>
 
-  <div class="sec">Free model provider</div>
-  <div class="field"><label>Provider for KAI's brain (all free options)</label>
+  <div class="sec">KAI Built-in AI — no key needed</div>
+  <div class="field"><label id="builtinStatus" style="font-size:13px;color:var(--dim)">checking…</label></div>
+  <div class="field"><label>Activate with your HuggingFace token (one time setup — free)</label><input id="builtinHfToken" type="password" placeholder="hf_..."></div>
+  <div class="btn-row"><button class="tm-btn primary" id="activateBuiltin">Activate KAI AI (Qwen 2.5 7B)</button></div>
+  <div class="field"><label style="font-size:11px;color:var(--dim)">Get free HF token: huggingface.co/settings/tokens → New token → Read access. Paste once, activate, never enter again.</label></div>
+
+  <div class="sec">Other free providers</div>
+  <div class="field"><label>Provider for KAI's brain</label>
     <select id="provSel">
-      <option value="groq">Groq · Llama 3.3 70B (recommended — fastest, free)</option>
-      <option value="hf">HuggingFace · Llama 3.3 70B (free, via HF Inference Providers)</option>
+      <option value="kai_builtin">★ KAI Built-in · Qwen 2.5 7B (no key needed after activation)</option>
+      <option value="groq">Groq · Llama 3.3 70B (recommended — fastest)</option>
+      <option value="hf">HuggingFace · Llama 3.3 70B (via HF Providers)</option>
       <option value="cerebras">Cerebras · Llama 3.3 70B (free tier)</option>
       <option value="mistral">Mistral · small-latest (free tier)</option>
     </select>
   </div>
-  <div class="field"><label>Provider key (paste once, KAI uses it for all chat)</label><input id="apiKey" type="password" placeholder="gsk_... or hf_... or csk-..."></div>
+  <div class="field"><label>Provider key (for Groq/HF/Cerebras/Mistral only)</label><input id="apiKey" type="password" placeholder="gsk_... or hf_... or csk-..."></div>
   <div class="btn-row"><button class="tm-btn primary" id="saveKey">Save provider key</button><button class="tm-btn" id="testProv">Test provider</button></div>
-  <div class="field"><label style="font-size:11px;color:var(--dim)" id="provHint">Get free Groq key: console.groq.com/keys · Get free HF token: huggingface.co/settings/tokens</label></div>
+  <div class="field"><label style="font-size:11px;color:var(--dim)" id="provHint">Get free Groq key: console.groq.com/keys</label></div>
 
   <div class="sec">Advanced — server URL</div>
   <div class="field"><label>Server URL</label><input id="srvUrl" placeholder="https://...supabase.co/functions/v1/kai-brain"></div>
