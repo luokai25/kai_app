@@ -176,13 +176,11 @@
   <div class="btn-row"><button class="tm-btn primary" id="saveKaiKey">Save KAI key</button><button class="tm-btn" id="testKey">Test</button></div>
   <div class="field"><label style="font-size:11px;color:var(--dim)">This is your one key for talking to KAI server. You don't need anything else if Groq is set up.</label></div>
 
-  <div class="sec">KAI Built-in AI — no key needed</div>
-  <div class="field"><label id="builtinStatus" style="font-size:13px;color:var(--dim)">checking…</label></div>
-  <div class="field"><label>Activate with your HuggingFace token (one time setup — free)</label><input id="builtinHfToken" type="password" placeholder="hf_..."></div>
-  <div class="btn-row"><button class="tm-btn primary" id="activateBuiltin">Activate KAI AI (Qwen 2.5 7B)</button></div>
-  <div class="field"><label style="font-size:11px;color:var(--dim)">Get free HF token: huggingface.co/settings/tokens → New token → Read access. Paste once, activate, never enter again.</label></div>
+  <div class="sec">KAI Built-in AI</div>
+  <div class="field"><label id="builtinStatus" style="font-size:13px;color:var(--good)">✦ Qwen 2.5 7B · always connected · free</label></div>
+  <div class="field"><label style="font-size:11px;color:var(--dim)">Model runs via HuggingFace Inference Providers (Together AI). Apache 2.0 license. No key needed — select it in the model picker beside the chat.</label></div>
 
-  <div class="sec">Other free providers</div>
+  <div class="sec">Add more models (optional)</div>
   <div class="field"><label>Provider for KAI's brain</label>
     <select id="provSel">
       <option value="kai_builtin">★ KAI Built-in · Qwen 2.5 7B (no key needed after activation)</option>

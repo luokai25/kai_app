@@ -260,22 +260,26 @@ function renderModelPicker(pingData){
   // Find current model
   const current = MODELS.find(m => m.provider === currentProvider) || MODELS[0];
   pillName.textContent = current.name;
-  pill.classList.toggle('active', currentProvider === 'kai_builtin' && (pingData?.has_builtin_ai));
+  // Gold highlight when using built-in connected model
+  const builtinOk = currentProvider === 'kai_builtin' && pingData?.has_builtin_ai;
+  pill.classList.toggle('active', builtinOk);
 
   // Render dropdown items
   dropdown.innerHTML = '<div class="md-title">Choose model</div>';
   for(const m of MODELS){
     const isSelected = m.provider === currentProvider;
-    const available = !m.needsKey ||
-      (m.provider === 'groq' && pingData?.has_groq) ||
-      (m.provider === 'hf' && pingData?.has_hf) ||
-      (m.provider === 'cerebras' && pingData?.has_cerebras) ||
-      (m.provider === 'mistral' && pingData?.has_mistral) ||
-      (m.provider === 'openai' && pingData?.has_openai) ||
-      (m.provider === 'kai_builtin' && pingData?.has_builtin_ai);
+    const available = !m.needsKey
+      || (m.provider === 'kai_builtin' && pingData?.has_builtin_ai)
+      || (m.provider === 'groq' && pingData?.has_groq)
+      || (m.provider === 'hf' && pingData?.has_hf)
+      || (m.provider === 'cerebras' && pingData?.has_cerebras)
+      || (m.provider === 'mistral' && pingData?.has_mistral)
+      || (m.provider === 'openai' && pingData?.has_openai);
+    const connLabel = m.provider === 'kai_builtin' && pingData?.has_builtin_ai
+      ? ' <span style="color:var(--good);font-size:10px">● connected</span>' : '';
     const row = document.createElement('div');
     row.className = 'md-item' + (isSelected ? ' selected' : '');
-    row.innerHTML = `<span class="mi-icon">${m.icon}</span><div class="mi-info"><div class="mi-name">${esc(m.name)}${available?'':' 🔒'}</div><div class="mi-desc">${esc(m.desc)}</div></div>${isSelected?'<span class="mi-check">✓</span>':''}`;
+    row.innerHTML = `<span class="mi-icon">${m.icon}</span><div class="mi-info"><div class="mi-name">${esc(m.name)}${available?connLabel:' <span style="font-size:10px;color:var(--dim)">🔒 key needed</span>'}</div><div class="mi-desc">${esc(m.desc)}</div></div>${isSelected?'<span class="mi-check">✓</span>':''}`;
     row.onclick = () => selectModel(m, pingData);
     dropdown.appendChild(row);
   }
@@ -316,35 +320,13 @@ function closeModelPicker(){
   $('modelDropdown').classList.remove('open');
   $('modelScrim').classList.remove('on');
 }
-async function activateBuiltin(){
-  const token = $('builtinHfToken').value.trim();
-  if(!token.startsWith('hf_')){ alert('Must start with hf_ — get from huggingface.co/settings/tokens'); return; }
-  if(!state.kaiKey){ alert('Set KAI API key first'); return; }
-  $('builtinStatus').innerHTML = '<span style="color:var(--gold)">activating…</span>';
-  try{
-    const r = await api('/set-builtin-key', { method:'POST', body:{ hf_token: token } });
-    if(r.ok){
-      $('builtinStatus').innerHTML = '<span style="color:var(--good)">✓ KAI Built-in AI active — Qwen 2.5 7B ready</span>';
-      $('builtinHfToken').value = '';
-      // Auto-switch to kai_builtin provider
-      if($('provSel')) $('provSel').value = 'kai_builtin';
-      await api('/set-key', { method:'POST', body:{ provider:'kai_builtin' } });
-      alert('✓ KAI Built-in AI activated!\nModel: Qwen 2.5 7B Instruct (Apache 2.0)\nYou can now chat without any provider key.');
-    } else {
-      $('builtinStatus').innerHTML = `<span style="color:var(--bad)">⚠ ${esc(r.error||'failed')}</span>`;
-    }
-  }catch(e){
-    $('builtinStatus').innerHTML = `<span style="color:var(--bad)">⚠ ${esc(e.message)}</span>`;
-  }
-}
-
 async function updateBuiltinStatus(pingData){
   const el = $('builtinStatus');
   if(!el) return;
   if(pingData && pingData.has_builtin_ai){
-    el.innerHTML = `<span style="color:var(--good)">✓ Active — ${esc(pingData.builtin_model||'Qwen 2.5 7B')} ready (no key needed)</span>`;
+    el.innerHTML = `<span style="color:var(--good)">✦ ${esc(pingData.builtin_model||'Qwen 2.5 7B')} · always connected · free</span>`;
   } else {
-    el.innerHTML = '<span style="color:var(--dim)">Not activated yet — paste your HF token below to activate</span>';
+    el.innerHTML = '<span style="color:var(--dim)">Built-in AI not configured on server.</span>';
   }
 }
 // ---- setup panel ----
@@ -727,7 +709,6 @@ function init(){
   $('saveKey').onclick = saveProviderKey;
   $('testProv').onclick = testProvider;
   $('provSel').addEventListener('change', updateProvHint);
-  if($('activateBuiltin')) $('activateBuiltin').onclick = activateBuiltin;
   $('forgetDev').onclick = ()=>{
     if(!confirm('Forget this device? You can paste your key again to reconnect.')) return;
     delete state.kaiKey; persist(); checkServer();
