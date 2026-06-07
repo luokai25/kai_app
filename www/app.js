@@ -52,7 +52,8 @@ async function checkServer(){
     lastPingData = d;
     const provLabel = d.provider === 'kai_builtin' ? 'KAI AI' : (d.provider || 'no provider');
     const keyOk = d.provider === 'kai_builtin' ? d.has_builtin_ai : (d.has_groq || d.has_hf || d.has_openai || d.has_cerebras || d.has_mistral);
-    setStatus(keyOk ? `${provLabel} ·  ready` : `${provLabel} · set a key`, keyOk || true);
+    const learnedStr = d.lessons_learned ? ` · ${d.lessons_learned} lessons` : '';
+    setStatus(keyOk ? `${provLabel} · ready${learnedStr}` : `${provLabel} · set a key`, keyOk || true);
     updateBuiltinStatus(d);
     renderModelPicker(d);
     return true;
@@ -86,6 +87,9 @@ function linkify(text){
     return `<a href="${url}" target="_blank" rel="noopener" style="color:var(--gold);text-decoration:underline">${esc(url.length>50?url.slice(0,47)+'…':url)}</a>`;
   });
 }
+// Track which messages we've rated this session
+const ratedMessages = new Set();
+
 function renderMessages(msgs){
   const c = $('msgs');
   c.innerHTML = msgs.map(m=>{
@@ -93,9 +97,35 @@ function renderMessages(msgs){
     const body = m.role === 'user' ? esc(m.text) : linkify(m.text);
     const used = (m.meta?.used?.length) ? `<div class="used">used: ${esc(m.meta.used.join(', '))}</div>` : '';
     const imgs = (m.meta?.image_urls?.length) ? `<div class="imgs">${m.meta.image_urls.map(u=>`<img src="${esc(u)}" onclick="window.open('${esc(u)}','_blank')">`).join('')}</div>` : '';
-    return `<div class="msg ${klass}">${imgs}${body}${used}</div>`;
+    // Feedback buttons on KAI messages that have a real server ID
+    let feedbackRow = '';
+    if(m.role === 'kai' && m.id && !m.meta?.error){
+      const rated = ratedMessages.has(m.id);
+      const fb = m.feedback;
+      feedbackRow = `<div class="fb-row" id="fb-${m.id}">
+        <button class="fb-btn${fb===1||rated?'':''}" onclick="sendFeedback('${m.id}',1)" title="Good response">👍</button>
+        <button class="fb-btn" onclick="sendFeedback('${m.id}',-1)" title="Bad response">👎</button>
+        ${fb===1?'<span class="fb-note">noted ✓</span>':fb===-1?'<span class="fb-note" style="color:var(--bad)">learning ✓</span>':''}
+      </div>`;
+    }
+    return `<div class="msg ${klass}">${imgs}${body}${used}${feedbackRow}</div>`;
   }).join('');
   c.scrollTop = c.scrollHeight;
+}
+async function sendFeedback(messageId, rating){
+  if(ratedMessages.has(messageId + rating)) return;
+  ratedMessages.add(messageId + rating);
+  const row = $('fb-'+messageId);
+  if(row) row.innerHTML = `<span class="fb-note" style="color:var(--gold)">saving…</span>`;
+  try{
+    await api('/feedback', { method:'POST', body:{ message_id: messageId, rating } });
+    if(row){
+      if(rating === 1) row.innerHTML = `<span class="fb-note" style="color:var(--good)">👍 noted — KAI will do more of this</span>`;
+      else row.innerHTML = `<span class="fb-note" style="color:var(--dim)">👎 noted — KAI is learning from this</span>`;
+    }
+  }catch(e){
+    if(row) row.innerHTML = `<span class="fb-note" style="color:var(--bad)">failed</span>`;
+  }
 }
 async function loadCurrentChat(){
   if(!currentChatId){ $('msgs').innerHTML = '<div class="empty">Tap to start a conversation with KAI.</div>'; return; }
@@ -211,7 +241,46 @@ function closeAll(){
   ['scrimL','panelL','scrimS','panelS','scrimC','panelC','scrimN','panelN'].forEach(id=>$(id)?.classList.remove('on'));
 }
 
-// ---- model registry ----
+// ---- lessons panel ----
+async function loadLessons(){
+  const list = $('lessonsList');
+  const countEl = $('lessonCount');
+  if(!list) return;
+  list.innerHTML = '<div class="empty" style="padding:16px">loading…</div>';
+  try{
+    const d = await api('/lessons');
+    const lessons = d.lessons || [];
+    if(countEl) countEl.textContent = `(${lessons.length})`;
+    if(!lessons.length){
+      list.innerHTML = '<div class="empty" style="padding:16px;color:var(--dim)">No lessons yet — chat with KAI and give feedback to help him learn.</div>';
+      return;
+    }
+    const sourceLabels = { feedback:'👍/👎 feedback', self_eval:'self-evaluation', insight:'insight', cron:'cron refresh' };
+    list.innerHTML = lessons.map(l=>`
+      <div class="lesson-card">
+        <div class="lc-text">${esc(l.lesson)}</div>
+        <div class="lc-meta">
+          <span class="lc-badge">${esc(sourceLabels[l.source]||l.source)}</span>
+          <div class="lc-imp"><div class="lc-imp-fill" style="width:${Math.round((l.importance||0.5)*100)}%"></div></div>
+          <span style="font-size:10px;color:var(--dim)">${Math.round((l.importance||0.5)*100)}%</span>
+        </div>
+      </div>`).join('');
+  }catch(e){
+    list.innerHTML = `<div class="empty" style="padding:16px;color:var(--bad)">${esc(e.message)}</div>`;
+  }
+}
+async function runSelfEvalNow(){
+  const btn = $('runSelfEval');
+  if(btn) btn.textContent = 'running…';
+  try{
+    const r = await api('/self-eval', { method:'POST' });
+    if(btn) btn.textContent = r.ok ? '✓ Done — lessons updated' : '⚠ '+r.error;
+    setTimeout(()=>{ if(btn) btn.textContent = '▶ Run self-eval now'; loadLessons(); }, 2000);
+  }catch(e){
+    if(btn) btn.textContent = '⚠ '+e.message;
+    setTimeout(()=>{ if(btn) btn.textContent = '▶ Run self-eval now'; }, 3000);
+  }
+}
 // Add more models here as we wire them. provider must exist in PROVIDERS on the server.
 const MODELS = [
   {
@@ -695,6 +764,9 @@ function init(){
     testKey();
   };
   $('goNotes').onclick = ()=>{ openP('scrimN','panelN'); loadNotes(); };
+  $('goLessons').onclick = ()=>{ openP('scrimL','panelL'); loadLessons(); };
+  if($('scrimL')) $('scrimL').onclick = ()=>closeP('scrimL','panelL');
+  if($('runSelfEval')) $('runSelfEval').onclick = runSelfEvalNow;
   // Default to KAI built-in provider on first launch
   if(!state.activeProvider) state.activeProvider = 'kai_builtin';
 
