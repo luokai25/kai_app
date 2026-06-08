@@ -97,6 +97,8 @@ function renderMessages(msgs){
     const klass = m.role === 'user' ? 'me' : 'kai';
     const body = m.role === 'user' ? esc(m.text) : linkify(m.text);
     const used = (m.meta?.used?.length) ? `<div class="used">used: ${esc(m.meta.used.join(', '))}</div>` : '';
+    const tokBadge = (m.role==='kai' && m.meta?.tokens)
+      ? `<span class="msg-tok">~${m.meta.tokens >= 1000 ? (m.meta.tokens/1000).toFixed(1)+'k' : m.meta.tokens} tok</span>` : '';
     const imgs = (m.meta?.image_urls?.length) ? `<div class="imgs">${m.meta.image_urls.map(u=>`<img src="${esc(u)}" onclick="window.open('${esc(u)}','_blank')">`).join('')}</div>` : '';
     // Feedback buttons on KAI messages that have a real server ID
     let feedbackRow = '';
@@ -109,7 +111,7 @@ function renderMessages(msgs){
         ${fb===1?'<span class="fb-note">noted ✓</span>':fb===-1?'<span class="fb-note" style="color:var(--bad)">learning ✓</span>':''}
       </div>`;
     }
-    return `<div class="msg ${klass}">${imgs}${body}${used}${feedbackRow}</div>`;
+    return `<div class="msg ${klass}">${imgs}${body}${used}${tokBadge}${feedbackRow}</div>`;
   }).join('');
   c.scrollTop = c.scrollHeight;
 }
@@ -206,15 +208,25 @@ async function send(){
           if(evt.type === 'chat_id') currentChatId = evt.chat_id;
           else if(evt.type === 'delta'){
             accumulated += evt.text;
+            // Real-time token estimate: ~4 chars per token
+            streamingTokens = Math.round(accumulated.length / 4);
+            updateTokenDisplay(sessionTokens + streamingTokens, true);
             localMsgs[placeholderIdx] = {role:'kai', text: accumulated, _streaming:true};
             renderMessages(localMsgs);
           }
           else if(evt.type === 'tools'){
-            // remember which tools were used to show under final message
             localMsgs[placeholderIdx].meta = {used: evt.used};
           }
           else if(evt.type === 'done'){
-            localMsgs[placeholderIdx] = {role:'kai', text: evt.reply, meta:{used: evt.used||[]}};
+            // Use server token count if available, else finalise estimate
+            const serverTok = evt.tokens || 0;
+            const finalTok = serverTok || streamingTokens;
+            addTokens(finalTok);
+            streamingTokens = 0;
+            localMsgs[placeholderIdx] = {
+              role:'kai', text: evt.reply,
+              meta:{ used: evt.used||[], tokens: finalTok }
+            };
             renderMessages(localMsgs);
           }
           else if(evt.type === 'error'){
@@ -239,7 +251,7 @@ async function send(){
 // ---- panels ----
 function openP(scrim, panel){ closeAll(); $(scrim).classList.add('on'); $(panel).classList.add('on'); }
 function closeAll(){
-  ['scrimL','panelL','scrimS','panelS','scrimC','panelC','scrimN','panelN'].forEach(id=>$(id)?.classList.remove('on'));
+  ['scrimL','panelL','scrimS','panelS','scrimC','panelC','scrimN','panelN','scrimK','panelK'].forEach(id=>$(id)?.classList.remove('on'));
 }
 
 // ---- lessons panel ----
@@ -282,7 +294,25 @@ async function runSelfEvalNow(){
     setTimeout(()=>{ if(btn) btn.textContent = '▶ Run self-eval now'; }, 3000);
   }
 }
-// ---- model registry — loads dynamically from /models endpoint ----
+// ---- token counter ----
+let sessionTokens = 0;
+let streamingTokens = 0;
+
+function updateTokenDisplay(tokens, streaming=false){
+  const pill = $('tokenPill');
+  const count = $('tokenCount');
+  if(!pill||!count) return;
+  const display = tokens >= 1000
+    ? (tokens/1000).toFixed(1)+'k'
+    : String(tokens);
+  count.textContent = display;
+  pill.style.display = 'flex';
+  pill.classList.toggle('streaming', streaming);
+}
+function addTokens(n){
+  sessionTokens += n;
+  updateTokenDisplay(sessionTokens);
+}
 const MODELS_STATIC = [
   { id:'kai_builtin',     name:'Qwen 2.5 7B',     icon:'✦', desc:'KAI Built-in · HF Inference · always free',       provider:'kai_builtin',     needsKey:false, source:'HF Inference',  ready:true  },
   { id:'github_llama8b',  name:'Llama 3.1 8B',    icon:'🐙', desc:'GitHub Models · Meta · free',                    provider:'github_llama8b',  needsKey:false, source:'GitHub Models', ready:true  },
@@ -384,7 +414,10 @@ async function selectModel(model, pingData){
   try{
     await api('/set-key', { method:'POST', body:{ provider: model.provider } });
     $('modelPillName').textContent = model.name;
+    // Update lastPingData so picker re-renders with correct selection
+    if(lastPingData) lastPingData.provider = model.provider;
     setStatus(`${model.name} · ready`, true);
+    renderModelPicker(lastPingData);
   }catch(e){ alert('Failed to switch: ' + e.message); }
 }
 
@@ -770,10 +803,10 @@ function init(){
     updateProvHint();
     testKey();
   };
-  $('goNotes').onclick = ()=>{ openP('scrimN','panelN'); loadNotes(); };
-  $('goLessons').onclick = ()=>{ openP('scrimL','panelL'); loadLessons(); };
-  if($('scrimL')) $('scrimL').onclick = ()=>closeP('scrimL','panelL');
+  $('goNotes').onclick   = ()=>{ openP('scrimN','panelN'); loadNotes(); };
+  $('goLessons').onclick = ()=>{ openP('scrimK','panelK'); loadLessons(); };
   if($('runSelfEval')) $('runSelfEval').onclick = runSelfEvalNow;
+  ['scrimL','scrimS','scrimC','scrimN','scrimK'].forEach(id=>{ if($(id)) $(id).onclick = closeAll; });
   // Default to KAI built-in provider on first launch
   if(!state.activeProvider) state.activeProvider = 'kai_builtin';
 

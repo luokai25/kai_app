@@ -54,6 +54,12 @@
   .vo-hint{font-size:13px;color:var(--dim);text-transform:uppercase;letter-spacing:2px}
   .modepill{font-size:10px;letter-spacing:1px;color:var(--dim);text-align:center;padding:3px;background:var(--panel)}
 
+  /* token counter */
+  .model-bar-right{display:flex;align-items:center;gap:8px}
+  .token-pill{display:flex;align-items:center;gap:2px;padding:3px 8px;border-radius:12px;background:rgba(255,217,107,.12);border:1px solid rgba(255,217,107,.3);font-size:11px;color:var(--gold);font-variant-numeric:tabular-nums;transition:opacity .3s}
+  .token-pill.streaming{animation:tokpulse 1s infinite}
+  @keyframes tokpulse{0%,100%{opacity:1}50%{opacity:.5}}
+  .msg-tok{display:inline-block;font-size:10px;color:var(--dim);margin-top:3px;opacity:0.7}
   /* feedback buttons */
   .fb-row{display:flex;align-items:center;gap:4px;margin-top:4px;padding-left:2px}
   .fb-btn{background:none;border:1px solid var(--line);border-radius:8px;padding:2px 8px;font-size:13px;cursor:pointer;color:var(--dim);line-height:1.4}
@@ -145,7 +151,12 @@
       <span class="mname" id="modelPillName">Qwen 2.5 7B</span>
       <span class="mchev">▾</span>
     </div>
-    <div class="mpill-status" id="modepill">connecting…</div>
+    <div class="model-bar-right">
+      <div class="token-pill" id="tokenPill" style="display:none">
+        <span id="tokenCount">0</span><span style="color:var(--dim)"> tok</span>
+      </div>
+      <div class="mpill-status" id="modepill">connecting…</div>
+    </div>
   </div>
   <div class="model-scrim" id="modelScrim"></div>
   <div class="model-dropdown" id="modelDropdown">
@@ -243,9 +254,8 @@
   <div class="btn-row"><button class="tm-btn primary" id="addNote">+ Add note</button></div>
 </div>
 
-<div class="scrim" id="scrimL"></div>
-<div class="panel right" id="panelL">
-  <h3>What KAI learned <span id="lessonCount" style="font-size:12px;color:var(--dim)"></span></h3>
+<div class="scrim" id="scrimK"></div>
+<div class="panel right" id="panelK">
   <div style="font-size:11px;color:var(--dim);padding:0 12px 8px">KAI writes behavioral lessons after every 8 messages and when you give feedback. These shape every future conversation.</div>
   <div id="lessonsList" style="flex:1;overflow-y:auto;padding:0 8px"></div>
   <div class="btn-row"><button class="tm-btn" id="runSelfEval">▶ Run self-eval now</button></div>
