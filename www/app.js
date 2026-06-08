@@ -56,6 +56,7 @@ async function checkServer(){
     setStatus(keyOk ? `${provLabel} · ready${learnedStr}` : `${provLabel} · set a key`, keyOk || true);
     updateBuiltinStatus(d);
     renderModelPicker(d);
+    loadServerModels(); // refresh model ready-states from server in background
     return true;
   }catch(e){
     setStatus('disconnected: '+e.message, false, true);
@@ -281,44 +282,30 @@ async function runSelfEvalNow(){
     setTimeout(()=>{ if(btn) btn.textContent = '▶ Run self-eval now'; }, 3000);
   }
 }
-// Add more models here as we wire them. provider must exist in PROVIDERS on the server.
-const MODELS = [
-  {
-    id: 'kai_builtin',
-    name: 'Qwen 2.5 7B',
-    icon: '✦',
-    desc: 'KAI Built-in · Apache 2.0 · free, always connected',
-    provider: 'kai_builtin',
-    needsKey: false,
-  },
-  {
-    id: 'groq_llama',
-    name: 'Llama 3.3 70B',
-    icon: '⚡',
-    desc: 'Groq · fastest inference · free tier · needs Groq key',
-    provider: 'groq',
-    needsKey: true,
-    keyHint: 'Groq key required (console.groq.com/keys)',
-  },
-  {
-    id: 'hf_llama',
-    name: 'Llama 3.3 70B (HF)',
-    icon: '🤗',
-    desc: 'HuggingFace Providers · free tier · needs HF token',
-    provider: 'hf',
-    needsKey: true,
-    keyHint: 'HF token required (huggingface.co/settings/tokens)',
-  },
-  {
-    id: 'cerebras_llama',
-    name: 'Llama 3.3 70B (Cerebras)',
-    icon: '🧠',
-    desc: 'Cerebras · fast free tier · needs Cerebras key',
-    provider: 'cerebras',
-    needsKey: true,
-    keyHint: 'Cerebras key required (cloud.cerebras.ai)',
-  },
+// ---- model registry — loads dynamically from /models endpoint ----
+const MODELS_STATIC = [
+  { id:'kai_builtin',     name:'Qwen 2.5 7B',     icon:'✦', desc:'KAI Built-in · HF Inference · always free',       provider:'kai_builtin',     needsKey:false, source:'HF Inference',  ready:true  },
+  { id:'github_llama8b',  name:'Llama 3.1 8B',    icon:'🐙', desc:'GitHub Models · Meta · free',                    provider:'github_llama8b',  needsKey:false, source:'GitHub Models', ready:true  },
+  { id:'github_llama405b',name:'Llama 3.1 405B',  icon:'🐙', desc:'GitHub Models · biggest free model anywhere',    provider:'github_llama405b',needsKey:false, source:'GitHub Models', ready:true  },
+  { id:'github_gpt4o',    name:'GPT-4o',           icon:'🐙', desc:'GitHub Models · OpenAI GPT-4o · free',           provider:'github_gpt4o',    needsKey:false, source:'GitHub Models', ready:true  },
+  { id:'github_gpt4omini',name:'GPT-4o mini',      icon:'🐙', desc:'GitHub Models · OpenAI · fast and free',         provider:'github_gpt4omini',needsKey:false, source:'GitHub Models', ready:true  },
+  { id:'kai_self_hosted', name:'SmolLM2 1.7B',     icon:'🏠', desc:'Self-hosted · luokai25/kai-llm · MIT · our own', provider:'kai_self_hosted', needsKey:false, source:'Self-hosted',   ready:false },
+  { id:'groq',            name:'Llama 3.3 70B',    icon:'⚡', desc:'Groq · fastest inference · free tier',            provider:'groq',            needsKey:true,  source:'Groq',          ready:false },
 ];
+let serverModels = [...MODELS_STATIC];
+
+async function loadServerModels(){
+  try{
+    const d = await api('/models');
+    if(!d.models?.length) return;
+    // Update ready status from server
+    serverModels = MODELS_STATIC.map(m => {
+      const srv = d.models.find(s => s.id === m.id);
+      return srv ? { ...m, ready: srv.ready } : m;
+    });
+    renderModelPicker(lastPingData);
+  }catch(e){ /* keep static fallback */ }
+}
 
 function renderModelPicker(pingData){
   const dropdown = $('modelDropdown');
@@ -327,47 +314,69 @@ function renderModelPicker(pingData){
   const currentProvider = pingData?.provider || state.activeProvider || 'kai_builtin';
 
   // Find current model
-  const current = MODELS.find(m => m.provider === currentProvider) || MODELS[0];
+  const current = serverModels.find(m => m.provider === currentProvider) || serverModels[0];
   pillName.textContent = current.name;
-  // Gold highlight when using built-in connected model
-  const builtinOk = currentProvider === 'kai_builtin' && pingData?.has_builtin_ai;
+  const builtinOk = !current.needsKey && current.ready;
   pill.classList.toggle('active', builtinOk);
 
-  // Render dropdown items
+  // Group models by source for display
+  const sources = {};
+  for(const m of serverModels){
+    if(!sources[m.source]) sources[m.source] = [];
+    sources[m.source].push(m);
+  }
+
   dropdown.innerHTML = '<div class="md-title">Choose model</div>';
-  for(const m of MODELS){
-    const isSelected = m.provider === currentProvider;
-    const available = !m.needsKey
-      || (m.provider === 'kai_builtin' && pingData?.has_builtin_ai)
-      || (m.provider === 'groq' && pingData?.has_groq)
-      || (m.provider === 'hf' && pingData?.has_hf)
-      || (m.provider === 'cerebras' && pingData?.has_cerebras)
-      || (m.provider === 'mistral' && pingData?.has_mistral)
-      || (m.provider === 'openai' && pingData?.has_openai);
-    const connLabel = m.provider === 'kai_builtin' && pingData?.has_builtin_ai
-      ? ' <span style="color:var(--good);font-size:10px">● connected</span>' : '';
-    const row = document.createElement('div');
-    row.className = 'md-item' + (isSelected ? ' selected' : '');
-    row.innerHTML = `<span class="mi-icon">${m.icon}</span><div class="mi-info"><div class="mi-name">${esc(m.name)}${available?connLabel:' <span style="font-size:10px;color:var(--dim)">🔒 key needed</span>'}</div><div class="mi-desc">${esc(m.desc)}</div></div>${isSelected?'<span class="mi-check">✓</span>':''}`;
-    row.onclick = () => selectModel(m, pingData);
-    dropdown.appendChild(row);
+
+  for(const [srcName, models] of Object.entries(sources)){
+    // Source group header
+    const srcLabel = {
+      'GitHub Models': '🐙 GitHub Models — free (Llama 405B, GPT-4o, ...)',
+      'HF Inference':  '✦ KAI Built-in — always connected',
+      'Self-hosted':   '🏠 Self-hosted — luokai25/kai-llm',
+      'Groq':          '⚡ Groq — bring your own key',
+    }[srcName] || srcName;
+    const grp = document.createElement('div');
+    grp.style.cssText = 'padding:6px 16px 2px;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--dim)';
+    grp.textContent = srcLabel;
+    dropdown.appendChild(grp);
+
+    for(const m of models){
+      const isSelected = m.provider === currentProvider;
+      const available = m.ready && !m.needsKey ||
+        (m.provider==='groq' && pingData?.has_groq);
+      const readyDot = m.ready
+        ? '<span style="color:var(--good);font-size:10px"> ● ready</span>'
+        : '<span style="color:var(--dim);font-size:10px"> ○ building…</span>';
+      const lockBadge = m.needsKey && !available
+        ? '<span style="font-size:10px;color:var(--dim)"> 🔒 key needed</span>' : '';
+      const row = document.createElement('div');
+      row.className = 'md-item' + (isSelected ? ' selected' : '');
+      row.innerHTML = `<span class="mi-icon">${m.icon}</span>
+        <div class="mi-info">
+          <div class="mi-name">${esc(m.name)}${available?readyDot:lockBadge}</div>
+          <div class="mi-desc">${esc(m.desc)}</div>
+        </div>
+        ${isSelected ? '<span class="mi-check">✓</span>' : ''}`;
+      row.onclick = () => selectModel(m, pingData);
+      dropdown.appendChild(row);
+    }
   }
 }
 
 async function selectModel(model, pingData){
   closeModelPicker();
   if(model.needsKey){
-    const has = (model.provider === 'groq' && pingData?.has_groq) ||
-                (model.provider === 'hf' && pingData?.has_hf) ||
-                (model.provider === 'cerebras' && pingData?.has_cerebras) ||
-                (model.provider === 'openai' && pingData?.has_openai);
-    if(!has){
-      alert(`${model.name} needs a ${model.provider} key.\n\n${model.keyHint||''}\n\nGo to Setup → paste your key there.`);
-      return;
-    }
+    const has = (model.provider==='groq' && pingData?.has_groq) ||
+                (model.provider==='hf' && pingData?.has_hf);
+    if(!has){ alert(`${model.name} needs a key.\nGo to Setup → paste your ${model.provider} key.`); return; }
   }
-  if(model.provider === 'kai_builtin' && !pingData?.has_builtin_ai){
-    alert('KAI Built-in AI not activated yet.\nGo to Setup → paste your HF token to activate it.');
+  if(!model.ready && !model.needsKey){
+    if(model.provider === 'kai_self_hosted'){
+      alert('SmolLM2 1.7B Space is still building on HuggingFace.\nCheck: huggingface.co/spaces/luokai25/kai-llm\nTry again in a few minutes.');
+    } else {
+      alert(`${model.name} is not ready yet.`);
+    }
     return;
   }
   state.activeProvider = model.provider;
@@ -375,10 +384,8 @@ async function selectModel(model, pingData){
   try{
     await api('/set-key', { method:'POST', body:{ provider: model.provider } });
     $('modelPillName').textContent = model.name;
-    setStatus('model: ' + model.name, true);
-  }catch(e){
-    alert('Failed to switch model: ' + e.message);
-  }
+    setStatus(`${model.name} · ready`, true);
+  }catch(e){ alert('Failed to switch: ' + e.message); }
 }
 
 function openModelPicker(){
