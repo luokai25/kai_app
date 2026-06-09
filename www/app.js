@@ -4,8 +4,10 @@
 
 const DEFAULT_SERVER = 'https://hpjvnohzhpkopisfaemz.supabase.co/functions/v1/kai-brain';
 const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhwanZub2h6aHBrb3Bpc2ZhZW16Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2MDU5NTcsImV4cCI6MjA5NjE4MTk1N30.f_FubOdzFCLejJGvf-1WNzRLhe__hKzoh2IX0NcDhqM';
-// Kai's KAI API key — already provisioned, baked in so he doesn't have to enroll
 const DEFAULT_KAI_KEY = 'kai_Om34heIJMU5MIRTXaaeEiHIUzhvnPjXt';
+const BUILD_TAG = 'K';       // bumped every APK release: A B C ... K ...
+const GH_REPO  = 'luokai25/kai_app';
+const GH_TOKEN = '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';
 
 // ---- state, persisted to localStorage ----
 const $ = id => document.getElementById(id);
@@ -294,7 +296,35 @@ async function runSelfEvalNow(){
     setTimeout(()=>{ if(btn) btn.textContent = '▶ Run self-eval now'; }, 3000);
   }
 }
-// ---- token counter ----
+// ---- APK update banner ----
+async function checkForAppUpdate(){
+  try{
+    const r = await fetch(`https://api.github.com/repos/${GH_REPO}/releases/latest`, {
+      headers:{ 'Authorization':'token '+GH_TOKEN }
+    });
+    const d = await r.json();
+    // Commit message or release name contains "Build K — ..."
+    const body = (d.body||d.name||'').toUpperCase();
+    const match = body.match(/BUILD ([A-Z]+)/);
+    if(!match) return;
+    const latestBuild = match[1];
+    // Compare: convert letter(s) to index
+    const toIdx = s => s.split('').reduce((a,c)=>a*26+(c.charCodeAt(0)-64), 0);
+    if(toIdx(latestBuild) > toIdx(BUILD_TAG)){
+      showUpdateBanner(latestBuild, d.assets?.[0]?.browser_download_url || d.html_url);
+    }
+  }catch(e){ /* silent — offline or rate-limited */ }
+}
+function showUpdateBanner(buildLetter, downloadUrl){
+  if($('updateBanner')) return; // already showing
+  const b = document.createElement('div');
+  b.id = 'updateBanner';
+  b.className = 'update-banner';
+  b.innerHTML = `<span>✦ Build ${esc(buildLetter)} available</span>`+
+    `<a href="${esc(downloadUrl)}" class="ub-btn">Download</a>`+
+    `<span class="ub-close" onclick="document.getElementById('updateBanner').remove()">✕</span>`;
+  document.body.insertBefore(b, document.body.firstChild);
+}
 let sessionTokens = 0;
 let streamingTokens = 0;
 
@@ -380,11 +410,16 @@ function renderModelPicker(pingData){
         : '<span style="color:var(--dim);font-size:10px"> ○ building…</span>';
       const lockBadge = m.needsKey && !available
         ? '<span style="font-size:10px;color:var(--dim)"> 🔒 key needed</span>' : '';
+      // Benchmark score badge
+      const bm = m.benchmark;
+      const bmBadge = bm
+        ? `<span style="font-size:10px;color:var(--gold);margin-left:4px">${Math.round(bm.total_score*100)}% · ${bm.latency_ms}ms</span>`
+        : '';
       const row = document.createElement('div');
       row.className = 'md-item' + (isSelected ? ' selected' : '');
       row.innerHTML = `<span class="mi-icon">${m.icon}</span>
         <div class="mi-info">
-          <div class="mi-name">${esc(m.name)}${available?readyDot:lockBadge}</div>
+          <div class="mi-name">${esc(m.name)}${available?readyDot:lockBadge}${bmBadge}</div>
           <div class="mi-desc">${esc(m.desc)}</div>
         </div>
         ${isSelected ? '<span class="mi-check">✓</span>' : ''}`;
@@ -392,8 +427,35 @@ function renderModelPicker(pingData){
       dropdown.appendChild(row);
     }
   }
+  // Benchmark run button at bottom of picker
+  const bmFooter = document.createElement('div');
+  bmFooter.style.cssText = 'padding:10px 16px;border-top:1px solid var(--line)';
+  bmFooter.innerHTML = '<button class="tm-btn" id="runBenchmarkBtn" style="width:100%;font-size:12px">⚡ Run benchmark — test all models</button>';
+  dropdown.appendChild(bmFooter);
+  setTimeout(()=>{ if($('runBenchmarkBtn')) $('runBenchmarkBtn').onclick = runBenchmark; }, 0);
 }
 
+async function runBenchmark(){
+  const btn = $('runBenchmarkBtn');
+  if(btn){ btn.textContent = '⚡ Running tests…'; btn.disabled = true; }
+  try{
+    const r = await api('/benchmark', { method:'POST', body:{ providers:'github_llama8b,github_gpt4omini,github_gpt4o' } });
+    closeModelPicker();
+    if(r.ok && r.results){
+      const scores = r.results.filter(x=>!x.error)
+        .sort((a,b)=>b.total_score-a.total_score)
+        .map(x=>`${x.label||x.provider}: ${Math.round(x.total_score*100)}%`).join('\n');
+      const best = r.best || '';
+      alert(`Benchmark complete!\n\n${scores}\n\nBest: ${best}\n\nModel picker now shows scores.`);
+      await loadServerModels(); // refresh scores
+      renderModelPicker(lastPingData);
+    }
+  }catch(e){
+    alert('Benchmark failed: '+e.message);
+  }finally{
+    if(btn){ btn.textContent = '⚡ Run benchmark — test all models'; btn.disabled = false; }
+  }
+}
 async function selectModel(model, pingData){
   closeModelPicker();
   if(model.needsKey){
@@ -850,6 +912,8 @@ function init(){
   // first paint
   loadCurrentChat();
   checkServer();
+  checkForAppUpdate();   // check GitHub for newer APK — shows gold banner if update exists
+  setTimeout(loadServerModels, 3000); // pre-load model+benchmark status after 3s
 
   // poll projects in background every 10s when computer panel open
   setInterval(()=>{
