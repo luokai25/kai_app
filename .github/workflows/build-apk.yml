@@ -44,14 +44,13 @@ jobs:
           echo "/opt/gradle-8.7/bin" >> $GITHUB_PATH
           echo "GRADLE_HOME=/opt/gradle-8.7" >> $GITHUB_ENV
 
-      - name: Prepare and build APK
+      - name: Build APK
         run: |
           set -e
           cordova create build com.kai.app KAI
           rm -rf build/www
           cp -r www build/www
           cp config.xml build/config.xml
-          ls -la build/www
           cd build
           cordova platform add android@12
           cordova plugin add cordova-plugin-android-permissions || true
@@ -63,39 +62,35 @@ jobs:
           fi
           cordova build android --debug -- --packageType=apk
 
-      - name: Re-sign (v1+v2+v3)
+      - name: Sign APK
         id: apk
         run: |
+          set -e
           BT=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -1)
-          RAW=$(find "$GITHUB_WORKSPACE" -name "app-debug.apk" -path "*outputs/apk*" | head -1)
-          echo "Raw APK: $RAW"
+          RAW=$(find "$GITHUB_WORKSPACE" -name "app-debug.apk" | head -1)
+          echo "Found: $RAW"
           "$BT/zipalign" -f -p 4 "$RAW" aligned.apk
           "$BT/apksigner" sign \
             --ks keystore/debug.keystore \
             --ks-pass pass:android --key-pass pass:android \
             --ks-key-alias androiddebugkey \
-            --v1-signing-enabled true \
-            --v2-signing-enabled true \
-            --v3-signing-enabled true \
-            --min-sdk-version 22 \
-            --out KAI.apk \
-            aligned.apk
-          "$BT/apksigner" verify --print-certs KAI.apk || true
+            --v1-signing-enabled true --v2-signing-enabled true --v3-signing-enabled true \
+            --min-sdk-version 22 --out KAI.apk aligned.apk
           ls -lh KAI.apk
-          echo "path=KAI.apk" >> $GITHUB_OUTPUT
+          echo "path=$GITHUB_WORKSPACE/KAI.apk" >> $GITHUB_OUTPUT
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: KAI-apk
-          path: ${{ steps.apk.outputs.path }}
-          if-no-files-found: warn
-
-      - name: Publish to Release
-        if: github.ref == 'refs/heads/main'
+      - name: Publish Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: kai-latest
           name: KAI APK (latest)
           files: ${{ steps.apk.outputs.path }}
-          fail_on_unmatched_files: false
+          fail_on_unmatched_files: true
+
+      - name: Upload artifact (optional)
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: KAI-apk
+          path: ${{ steps.apk.outputs.path }}
+          if-no-files-found: warn
