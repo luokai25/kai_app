@@ -176,6 +176,30 @@ async function send(){
   renderMessages(localMsgs);
 
   try{
+    // Agentic mode: all models collaborate, non-streaming
+    if(agentMode){
+      localMsgs[placeholderIdx] = {role:'kai', text:'🤖 All models thinking…', _streaming:true};
+      renderMessages(localMsgs);
+      const r = await api('/chat/agentic', {
+        method:'POST',
+        body:{ chat_id: currentChatId, text, image_urls: pendingImages.filter(p=>p.url).map(p=>p.url) }
+      });
+      if(r.error) throw new Error(r.error);
+      if(r.chat_id) currentChatId = r.chat_id;
+      const agentTok = r.tokens || 0;
+      addTokens(agentTok);
+      streamingTokens = 0;
+      // Show synthesis + which models participated
+      const participated = r.participants?.join(', ') || r.provider || 'multiple models';
+      localMsgs[placeholderIdx] = {
+        role:'kai', text: r.reply,
+        meta:{ used: r.used||[], tokens: agentTok, participants: r.participants }
+      };
+      renderMessages(localMsgs);
+      clearImages();
+      $('sendBtn').disabled = false;
+      return;
+    }
     // Use streaming endpoint if available, fall back to /chat
     const headers = {
       'Content-Type': 'application/json',
@@ -401,120 +425,179 @@ async function loadServerModels(){
   }catch(e){ /* keep static fallback */ }
 }
 
+// ── Agentic mode state ──────────────────────────────────────
+let agentMode = false;
+
+function toggleAgentMode(){
+  agentMode = !agentMode;
+  const btn = $('agentBtn');
+  if(btn){
+    btn.classList.toggle('on', agentMode);
+    btn.title = agentMode
+      ? 'Agentic ON — all models collaborate on your task (click to turn off)'
+      : 'All models collaborate on this task';
+    btn.textContent = agentMode ? '🤖 Agentic' : '🤖';
+    setStatus(agentMode ? '🤖 Agentic mode — multi-model collaboration' : 'ready', !agentMode);
+  }
+}
+
+// ── Quick-chip selection ─────────────────────────────────────
+function wireQuickChips(pingData){
+  const currentProvider = pingData?.provider || state.activeProvider || 'or_openrouter_free';
+  document.querySelectorAll('.mq-chip').forEach(chip => {
+    const pid = chip.dataset.pid;
+    chip.classList.toggle('sel', pid === currentProvider);
+    chip.onclick = async () => {
+      const m = serverModels.find(x => x.provider === pid);
+      if(m) await selectModel(m, pingData);
+    };
+  });
+}
+
 function renderModelPicker(pingData){
   const dropdown = $('modelDropdown');
   const pill = $('modelPill');
   const pillName = $('modelPillName');
-  const currentProvider = pingData?.provider || state.activeProvider || 'kai_builtin';
+  const pillIcon = $('modelPillIcon');
+  const currentProvider = pingData?.provider || state.activeProvider || 'or_openrouter_free';
 
   // Find current model
   const current = serverModels.find(m => m.provider === currentProvider) || serverModels[0];
-  pillName.textContent = current.name;
-  const builtinOk = !current.needsKey && current.ready;
-  pill.classList.toggle('active', builtinOk);
+  if(pillName) pillName.textContent = current?.name || 'KAI';
+  if(pillIcon) pillIcon.textContent = current?.icon || '✦';
+  pill?.classList.toggle('active', current?.ready !== false);
 
-  // Group models by source for display
+  // Wire quick chips
+  wireQuickChips(pingData);
+
+  // Group models by source
   const sources = {};
   for(const m of serverModels){
     if(!sources[m.source]) sources[m.source] = [];
     sources[m.source].push(m);
   }
 
-  dropdown.innerHTML = '<div class="md-title">Choose model</div>';
+  // Source labels and order
+  const srcOrder = ['OpenRouter Free','GitHub Models','HF Inference','Self-hosted','Groq'];
+  const srcLabel = {
+    'OpenRouter Free': '🆓 OpenRouter Free — 24 models, $0 forever',
+    'GitHub Models':   '🐙 GitHub Models — Llama 405B · GPT-4o · free',
+    'HF Inference':    '✦ HF Inference — needs token',
+    'Self-hosted':     '🏠 Self-hosted — luokai25/kai-llm',
+    'Groq':            '⚡ Groq — bring your own key',
+  };
 
-  for(const [srcName, models] of Object.entries(sources)){
-    // Source group header
-    const srcLabel = {
-      'GitHub Models': '🐙 GitHub Models — free (Llama 405B, GPT-4o, ...)',
-      'HF Inference':  '✦ KAI Built-in — always connected',
-      'Self-hosted':   '🏠 Self-hosted — luokai25/kai-llm',
-      'Groq':          '⚡ Groq — bring your own key',
-    }[srcName] || srcName;
-    const grp = document.createElement('div');
-    grp.style.cssText = 'padding:6px 16px 2px;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--dim)';
-    grp.textContent = srcLabel;
-    dropdown.appendChild(grp);
+  // Keep handle
+  dropdown.innerHTML = '<div class="md-handle"></div>';
+
+  // Render sections
+  const orderedSources = [...srcOrder.filter(s => sources[s]), ...Object.keys(sources).filter(s => !srcOrder.includes(s))];
+
+  for(const src of orderedSources){
+    const models = sources[src] || [];
+    if(!models.length) continue;
+
+    const sectionId = 'mdsec_' + src.replace(/\s/g,'_');
+    const isOR = src === 'OpenRouter Free';
+    // Start OR collapsed to save space (expandable)
+    const startCollapsed = false; // all open by default
+
+    // Source header (clickable to collapse)
+    const hdr = document.createElement('div');
+    hdr.className = 'md-source-row';
+    hdr.innerHTML = `<div class="md-source"><span>${srcLabel[src]||src}</span><span class="md-src-count">${models.length}</span></div><span class="md-src-toggle" id="tog_${sectionId}">▾</span>`;
+    dropdown.appendChild(hdr);
+
+    // Section body
+    const section = document.createElement('div');
+    section.className = 'md-section';
+    section.id = sectionId;
+    section.style.maxHeight = '2000px';
 
     for(const m of models){
       const isSelected = m.provider === currentProvider;
-      const available = m.ready && !m.needsKey ||
-        (m.provider==='groq' && pingData?.has_groq);
-      const readyDot = m.ready
-        ? '<span style="color:var(--good);font-size:10px"> ● ready</span>'
-        : '<span style="color:var(--dim);font-size:10px"> ○ building…</span>';
-      const lockBadge = m.needsKey && !available
-        ? '<span style="font-size:10px;color:var(--dim)"> 🔒 key needed</span>' : '';
-      // Benchmark score badge
       const bm = m.benchmark;
-      const bmBadge = bm
-        ? `<span style="font-size:10px;color:var(--gold);margin-left:4px">${Math.round(bm.total_score*100)}% · ${bm.latency_ms}ms</span>`
-        : '';
+      const bmStr = bm ? `<span class="mi-bm">${Math.round(bm.total_score*100)}%</span><span class="mi-ctx">·${bm.latency_ms}ms</span>` : '';
+      // Context length from desc
+      const ctxMatch = m.desc.match(/(\d+[kKmM]) ctx/);
+      const ctxStr = ctxMatch ? `<span class="mi-ctx">${ctxMatch[1]}</span>` : '';
+      const freeBadge = m.source === 'OpenRouter Free' ? '<span class="mi-free">FREE</span>' : '';
+
       const row = document.createElement('div');
       row.className = 'md-item' + (isSelected ? ' selected' : '');
       row.innerHTML = `<span class="mi-icon">${m.icon}</span>
         <div class="mi-info">
-          <div class="mi-name">${esc(m.name)}${available?readyDot:lockBadge}${bmBadge}</div>
-          <div class="mi-desc">${esc(m.desc)}</div>
-        </div>
-        ${isSelected ? '<span class="mi-check">✓</span>' : ''}`;
+          <div class="mi-name">${esc(m.name)}${isSelected ? ' <span style="color:var(--gold);font-size:11px">✓</span>' : ''}</div>
+          <div class="mi-meta">${freeBadge}${ctxStr}${bmStr}</div>
+        </div>`;
       row.onclick = () => selectModel(m, pingData);
-      dropdown.appendChild(row);
+      section.appendChild(row);
     }
+    dropdown.appendChild(section);
+
+    // Wire collapse
+    hdr.onclick = () => {
+      const sec = $(sectionId);
+      const tog = $('tog_'+sectionId);
+      const collapsed = sec.classList.toggle('collapsed');
+      if(tog) tog.textContent = collapsed ? '▸' : '▾';
+    };
   }
-  // Benchmark run button at bottom of picker
-  const bmFooter = document.createElement('div');
-  bmFooter.style.cssText = 'padding:10px 16px;border-top:1px solid var(--line)';
-  bmFooter.innerHTML = '<button class="tm-btn" id="runBenchmarkBtn" style="width:100%;font-size:12px">⚡ Run benchmark — test all models</button>';
-  dropdown.appendChild(bmFooter);
+
+  // Benchmark footer
+  const footer = document.createElement('div');
+  footer.className = 'md-footer';
+  footer.innerHTML = '<button class="tm-btn" id="runBenchmarkBtn" style="width:100%;font-size:12px">⚡ Benchmark all models — find the fastest</button>';
+  dropdown.appendChild(footer);
   setTimeout(()=>{ if($('runBenchmarkBtn')) $('runBenchmarkBtn').onclick = runBenchmark; }, 0);
 }
 
 async function runBenchmark(){
   const btn = $('runBenchmarkBtn');
-  if(btn){ btn.textContent = '⚡ Running tests…'; btn.disabled = true; }
+  if(btn){ btn.textContent = '⚡ Running…'; btn.disabled = true; }
   try{
-    const r = await api('/benchmark', { method:'POST', body:{ providers:'github_llama8b,github_gpt4omini,github_gpt4o' } });
+    const r = await api('/benchmark', { method:'POST', body:{ providers:'or_gptoss120b,or_nemotron550b,or_llama70b' } });
     closeModelPicker();
     if(r.ok && r.results){
-      const scores = r.results.filter(x=>!x.error)
-        .sort((a,b)=>b.total_score-a.total_score)
-        .map(x=>`${x.label||x.provider}: ${Math.round(x.total_score*100)}%`).join('\n');
-      const best = r.best || '';
-      alert(`Benchmark complete!\n\n${scores}\n\nBest: ${best}\n\nModel picker now shows scores.`);
-      await loadServerModels(); // refresh scores
+      const top = r.results.filter(x=>!x.error).sort((a,b)=>b.total_score-a.total_score);
+      alert(`Benchmark done!\n\n${top.map(x=>`${x.label||x.provider}: ${Math.round(x.total_score*100)}% (${x.latency_ms}ms)`).join('\n')}\n\nBest: ${r.best||'N/A'}`);
+      await loadServerModels();
       renderModelPicker(lastPingData);
     }
-  }catch(e){
-    alert('Benchmark failed: '+e.message);
-  }finally{
-    if(btn){ btn.textContent = '⚡ Run benchmark — test all models'; btn.disabled = false; }
-  }
+  }catch(e){ alert('Benchmark failed: '+e.message); }
+  finally{ if(btn){ btn.textContent = '⚡ Benchmark all models — find the fastest'; btn.disabled = false; } }
 }
+
 async function selectModel(model, pingData){
   closeModelPicker();
   if(model.needsKey){
-    const has = (model.provider==='groq' && pingData?.has_groq) ||
-                (model.provider==='hf' && pingData?.has_hf);
+    const has = (model.provider==='groq' && pingData?.has_groq)||(model.provider==='hf' && pingData?.has_hf);
     if(!has){ alert(`${model.name} needs a key.\nGo to Setup → paste your ${model.provider} key.`); return; }
   }
   if(!model.ready && !model.needsKey){
-    if(model.provider === 'kai_self_hosted'){
-      alert('SmolLM2 1.7B Space is still building on HuggingFace.\nCheck: huggingface.co/spaces/luokai25/kai-llm\nTry again in a few minutes.');
-    } else {
-      alert(`${model.name} is not ready yet.`);
-    }
+    if(model.provider==='kai_self_hosted') alert('SmolLM2 Space still building at huggingface.co/spaces/luokai25/kai-llm');
+    else alert(`${model.name} not ready yet.`);
     return;
   }
   state.activeProvider = model.provider;
   persist();
   try{
     await api('/set-key', { method:'POST', body:{ provider: model.provider } });
-    $('modelPillName').textContent = model.name;
-    // Update lastPingData so picker re-renders with correct selection
+    if($('modelPillName')) $('modelPillName').textContent = model.name;
+    if($('modelPillIcon')) $('modelPillIcon').textContent = model.icon || '✦';
     if(lastPingData) lastPingData.provider = model.provider;
     setStatus(`${model.name} · ready`, true);
-    renderModelPicker(lastPingData);
+    wireQuickChips(lastPingData);
   }catch(e){ alert('Failed to switch: ' + e.message); }
+}
+
+function openModelPicker(){
+  $('modelDropdown').classList.add('open');
+  $('modelScrim').classList.add('on');
+}
+function closeModelPicker(){
+  $('modelDropdown').classList.remove('open');
+  $('modelScrim').classList.remove('on');
 }
 
 function openModelPicker(){
@@ -910,6 +993,8 @@ function init(){
     renderModelPicker(lastPingData);
     openModelPicker();
   };
+  if($('agentBtn'))    $('agentBtn').onclick = toggleAgentMode;
+  if($('modelPill'))   $('modelPill').onclick = openModelPicker;
   $('modelScrim').onclick = closeModelPicker;
 
   $('saveKaiKey').onclick = saveKaiKey;

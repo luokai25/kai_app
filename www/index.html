@@ -77,29 +77,56 @@
   .lesson-card .lc-badge{font-size:10px;padding:2px 7px;border-radius:10px;background:var(--panel);color:var(--dim);border:1px solid var(--line)}
   .lesson-card .lc-imp{flex:1;height:3px;background:var(--line);border-radius:2px;overflow:hidden}
   .lesson-card .lc-imp-fill{height:100%;background:var(--gold);border-radius:2px}
-  /* model picker bar */
-  .model-bar{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;padding:4px 10px;background:var(--panel);border-top:1px solid var(--line)}
-  .model-pill{display:flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;border:1px solid var(--line);background:var(--panel2);cursor:pointer;font-size:12px;color:var(--ink);user-select:none;-webkit-user-select:none;transition:border-color .15s}
-  .model-pill:active{border-color:var(--gold)}
-  .model-pill .micon{font-size:14px}
-  .model-pill .mname{color:var(--ink);font-weight:500;letter-spacing:.3px}
-  .model-pill .mchev{color:var(--dim);font-size:10px}
-  .model-pill.active{border-color:var(--gold);color:var(--gold)}
+  /* ── model bar (compact redesign) ─────────────────────── */
+  .model-bar{flex:0 0 auto;display:flex;align-items:center;gap:6px;padding:5px 10px;background:var(--panel);border-top:1px solid var(--line)}
+  /* active model pill */
+  .model-pill{display:flex;align-items:center;gap:4px;padding:3px 9px;border-radius:14px;border:1px solid var(--line);background:var(--panel2);cursor:pointer;font-size:12px;color:var(--ink);user-select:none;-webkit-user-select:none;transition:all .15s;flex-shrink:0}
+  .model-pill:active,.model-pill.active{border-color:var(--gold)}
   .model-pill.active .mname{color:var(--gold)}
-  .mpill-status{font-size:10px;color:var(--dim);letter-spacing:.5px}
-  /* model dropdown */
-  .model-dropdown{position:fixed;bottom:0;left:0;right:0;background:var(--panel);border-top:1px solid var(--line);border-radius:20px 20px 0 0;z-index:60;padding:8px 0 calc(8px + env(safe-area-inset-bottom));transform:translateY(100%);transition:transform .25s cubic-bezier(.4,0,.2,1)}
+  .model-pill .micon{font-size:12px}
+  .model-pill .mname{font-weight:600;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .model-pill .mchev{color:var(--dim);font-size:9px;flex-shrink:0}
+  /* quick-model strip — top 5 as icon chips */
+  .model-quick{display:flex;gap:4px;flex:1;overflow:hidden}
+  .mq-chip{display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);cursor:pointer;font-size:13px;flex-shrink:0;transition:border-color .15s,background .15s;position:relative}
+  .mq-chip:active,.mq-chip.sel{border-color:var(--gold);background:rgba(255,217,107,.12)}
+  .mq-chip[title]:active::after{content:attr(title);position:absolute;bottom:calc(100% + 4px);left:50%;transform:translateX(-50%);background:#000;color:#fff;font-size:10px;padding:2px 6px;border-radius:6px;white-space:nowrap;pointer-events:none}
+  /* agentic toggle */
+  .agent-btn{display:flex;align-items:center;gap:3px;padding:3px 8px;border-radius:12px;border:1px solid var(--line);background:var(--panel2);cursor:pointer;font-size:11px;color:var(--dim);font-weight:600;flex-shrink:0;transition:all .15s;-webkit-user-select:none;user-select:none}
+  .agent-btn.on{border-color:#6c63ff;background:rgba(108,99,255,.12);color:#6c63ff}
+  /* right side */
+  .model-bar-right{display:flex;align-items:center;gap:6px;flex-shrink:0}
+  .token-pill{display:flex;align-items:center;gap:2px;padding:2px 7px;border-radius:12px;background:rgba(255,217,107,.12);border:1px solid rgba(255,217,107,.3);font-size:10px;color:var(--gold);font-variant-numeric:tabular-nums}
+  .token-pill.streaming{animation:tokpulse 1s infinite}
+  @keyframes tokpulse{0%,100%{opacity:1}50%{opacity:.5}}
+  .msg-tok{display:inline-block;font-size:10px;color:var(--dim);margin-top:3px;opacity:0.7}
+  /* ── model drawer (redesigned) ────────────────────────── */
+  .model-dropdown{position:fixed;bottom:0;left:0;right:0;background:var(--panel);border-top:1px solid var(--line);border-radius:20px 20px 0 0;z-index:60;padding-bottom:calc(8px + env(safe-area-inset-bottom));transform:translateY(100%);transition:transform .25s cubic-bezier(.4,0,.2,1);max-height:75vh;overflow-y:auto}
   .model-dropdown.open{transform:translateY(0)}
-  .model-dropdown .md-title{padding:10px 16px 6px;font-size:11px;text-transform:uppercase;letter-spacing:2px;color:var(--dim)}
-  .model-dropdown .md-item{display:flex;align-items:center;gap:12px;padding:12px 16px;cursor:pointer;border-bottom:1px solid var(--line)}
-  .model-dropdown .md-item:last-child{border-bottom:none}
-  .model-dropdown .md-item:active{background:var(--panel2)}
-  .model-dropdown .md-item.selected{background:rgba(255,217,107,.08)}
-  .model-dropdown .md-item .mi-icon{font-size:20px;width:32px;text-align:center}
-  .model-dropdown .md-item .mi-info{flex:1}
-  .model-dropdown .md-item .mi-name{font-size:14px;font-weight:600;color:var(--ink)}
-  .model-dropdown .md-item .mi-desc{font-size:11px;color:var(--dim);margin-top:1px}
-  .model-dropdown .md-item .mi-check{color:var(--gold);font-size:18px}
+  /* handle bar */
+  .md-handle{width:36px;height:4px;border-radius:2px;background:var(--line);margin:10px auto 6px}
+  /* source header */
+  .md-source{padding:6px 14px 3px;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);display:flex;align-items:center;gap:6px}
+  .md-src-count{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:1px 6px;font-size:9px;color:var(--dim)}
+  /* compact model item */
+  .md-item{display:flex;align-items:center;gap:10px;padding:8px 14px;cursor:pointer;transition:background .1s}
+  .md-item:active,.md-item.selected{background:rgba(255,217,107,.07)}
+  .md-item .mi-icon{font-size:16px;width:24px;text-align:center;flex-shrink:0}
+  .md-item .mi-info{flex:1;min-width:0}
+  .md-item .mi-name{font-size:13px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .md-item .mi-meta{font-size:10px;color:var(--dim);margin-top:1px;display:flex;align-items:center;gap:4px}
+  .md-item .mi-ctx{color:var(--dim)}
+  .md-item .mi-bm{color:var(--gold);font-weight:700}
+  .md-item .mi-check{color:var(--gold);font-size:16px;flex-shrink:0}
+  .md-item .mi-free{background:rgba(80,200,120,.12);border:1px solid rgba(80,200,120,.3);color:#50c878;font-size:9px;padding:1px 5px;border-radius:6px;font-weight:700}
+  /* source collapse toggle */
+  .md-source-row{display:flex;align-items:center;justify-content:space-between;padding:6px 14px 3px;cursor:pointer}
+  .md-source-row .md-source{padding:0}
+  .md-src-toggle{font-size:10px;color:var(--dim)}
+  .md-section{overflow:hidden;transition:max-height .2s}
+  .md-section.collapsed{max-height:0!important}
+  /* benchmark footer */
+  .md-footer{padding:10px 14px;border-top:1px solid var(--line)}
   .model-scrim{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:59;display:none}
   .model-scrim.on{display:block}
   .scrim{position:fixed;inset:0;background:rgba(0,0,0,.55);opacity:0;pointer-events:none;transition:.25s;z-index:40}
@@ -151,22 +178,33 @@
   </div>
   <div class="msgs" id="msgs"></div>
   <div class="model-bar">
+    <!-- active model pill (click to open full picker) -->
     <div class="model-pill" id="modelPill">
-      <span class="micon">✦</span>
-      <span class="mname" id="modelPillName">Qwen 2.5 7B</span>
+      <span class="micon" id="modelPillIcon">✦</span>
+      <span class="mname" id="modelPillName">OpenRouter Auto</span>
       <span class="mchev">▾</span>
     </div>
+    <!-- quick-select chips: top 5 free models -->
+    <div class="model-quick" id="modelQuick">
+      <div class="mq-chip" data-pid="or_gptoss120b" title="GPT-OSS 120B">🔥</div>
+      <div class="mq-chip" data-pid="or_nemotron550b" title="Nemotron 550B">⚡</div>
+      <div class="mq-chip" data-pid="or_llama70b" title="Llama 70B">🦙</div>
+      <div class="mq-chip" data-pid="or_gemma31b" title="Gemma 31B">💎</div>
+      <div class="mq-chip" data-pid="or_qwen3_coder" title="Qwen Coder 480B">🧑‍💻</div>
+    </div>
+    <!-- agentic mode toggle -->
+    <button class="agent-btn" id="agentBtn" title="All models collaborate on this task">🤖</button>
+    <!-- token counter -->
     <div class="model-bar-right">
       <div class="token-pill" id="tokenPill" style="display:none">
         <span id="tokenCount">0</span><span style="color:var(--dim)"> tok</span>
       </div>
-      <div class="mpill-status" id="modepill">connecting…</div>
     </div>
   </div>
   <div class="model-scrim" id="modelScrim"></div>
   <div class="model-dropdown" id="modelDropdown">
-    <div class="md-title">Choose model</div>
-    <!-- items injected by JS -->
+    <div class="md-handle"></div>
+    <!-- sections injected by JS, grouped by source -->
   </div>
   <div id="attachPreview" class="attach-preview"></div>
   <div class="composer">
