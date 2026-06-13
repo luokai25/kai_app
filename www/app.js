@@ -5,7 +5,7 @@
 const DEFAULT_SERVER = 'https://hpjvnohzhpkopisfaemz.supabase.co/functions/v1/kai-brain';
 const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhwanZub2h6aHBrb3Bpc2ZhZW16Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2MDU5NTcsImV4cCI6MjA5NjE4MTk1N30.f_FubOdzFCLejJGvf-1WNzRLhe__hKzoh2IX0NcDhqM';
 const DEFAULT_KAI_KEY = 'kai_Om34heIJMU5MIRTXaaeEiHIUzhvnPjXt';
-const BUILD_TAG = 'K';       // bumped every APK release: A B C ... K ...
+const BUILD_TAG = 'L';       // bumped every APK release: A B C ... K L ...
 const GH_REPO  = 'luokai25/kai_app';
 const GH_TOKEN = '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';
 
@@ -344,13 +344,40 @@ function addTokens(n){
   updateTokenDisplay(sessionTokens);
 }
 const MODELS_STATIC = [
-  { id:'kai_builtin',     name:'Qwen 2.5 7B',     icon:'✦', desc:'KAI Built-in · HF Inference · always free',       provider:'kai_builtin',     needsKey:false, source:'HF Inference',  ready:true  },
-  { id:'github_llama8b',  name:'Llama 3.1 8B',    icon:'🐙', desc:'GitHub Models · Meta · free',                    provider:'github_llama8b',  needsKey:false, source:'GitHub Models', ready:true  },
-  { id:'github_llama405b',name:'Llama 3.1 405B',  icon:'🐙', desc:'GitHub Models · biggest free model anywhere',    provider:'github_llama405b',needsKey:false, source:'GitHub Models', ready:true  },
-  { id:'github_gpt4o',    name:'GPT-4o',           icon:'🐙', desc:'GitHub Models · OpenAI GPT-4o · free',           provider:'github_gpt4o',    needsKey:false, source:'GitHub Models', ready:true  },
-  { id:'github_gpt4omini',name:'GPT-4o mini',      icon:'🐙', desc:'GitHub Models · OpenAI · fast and free',         provider:'github_gpt4omini',needsKey:false, source:'GitHub Models', ready:true  },
-  { id:'kai_self_hosted', name:'SmolLM2 1.7B',     icon:'🏠', desc:'Self-hosted · luokai25/kai-llm · MIT · our own', provider:'kai_self_hosted', needsKey:false, source:'Self-hosted',   ready:false },
-  { id:'groq',            name:'Llama 3.3 70B',    icon:'⚡', desc:'Groq · fastest inference · free tier',            provider:'groq',            needsKey:true,  source:'Groq',          ready:false },
+  // ── OpenRouter Free (24 models, price=$0 forever, no credit card) ──────────
+  { id:'or_openrouter_free', name:'OpenRouter Auto',      icon:'🆓', desc:'Best free model auto-selected · always free · OpenRouter',        provider:'or_openrouter_free', needsKey:false, source:'OpenRouter Free', ready:true  },
+  { id:'or_qwen3_coder',     name:'Qwen3 Coder 480B',    icon:'🔥', desc:'480B coding specialist · 1M ctx · OpenRouter free',               provider:'or_qwen3_coder',     needsKey:false, source:'OpenRouter Free', ready:true  },
+  { id:'or_nemotron550b',    name:'Nemotron Ultra 550B',  icon:'🔥', desc:'NVIDIA 550B · 1M ctx · top benchmark · OpenRouter free',          provider:'or_nemotron550b',    needsKey:false, source:'OpenRouter Free', ready:true  },
+  { id:'or_nemotron120b',    name:'Nemotron Super 120B',  icon:'🔥', desc:'NVIDIA 120B · 1M ctx · fast · OpenRouter free',                   provider:'or_nemotron120b',    needsKey:false, source:'OpenRouter Free', ready:true  },
+  { id:'or_gptoss120b',      name:'GPT-OSS 120B',         icon:'🔥', desc:'OpenAI open 120B · 131k ctx · OpenRouter free',                   provider:'or_gptoss120b',      needsKey:false, source:'OpenRouter Free', ready:true  },
+  { id:'or_gptoss20b',       name:'GPT-OSS 20B',          icon:'🆓', desc:'OpenAI open 20B · 131k ctx · fast · OpenRouter free',             provider:'or_gptoss20b',       needsKey:false, source:'OpenRouter Free', ready:true  },
+  { id:'or_llama70b',        name:'Llama 3.3 70B',        icon:'🔥', desc:'Meta · 131k ctx · top open model · OpenRouter free',              provider:'or_llama70b',        needsKey:false, source:'OpenRouter Free', ready:true  },
+  { id:'or_hermes405b',      name:'Hermes 3 405B',        icon:'🔥', desc:'NousResearch · Llama 405B fine-tune · 131k · OpenRouter free',    provider:'or_hermes405b',      needsKey:false, source:'OpenRouter Free', ready:true  },
+  { id:'or_gemma31b',        name:'Gemma 4 31B',          icon:'🆓', desc:'Google · 262k ctx · OpenRouter free',                             provider:'or_gemma31b',        needsKey:false, source:'OpenRouter Free', ready:true  },
+  { id:'or_gemma26b',        name:'Gemma 4 26B',          icon:'🆓', desc:'Google MoE · 262k ctx · OpenRouter free',                        provider:'or_gemma26b',        needsKey:false, source:'OpenRouter Free', ready:true  },
+  { id:'or_kimi',            name:'Kimi K2.6',             icon:'🆓', desc:'Moonshot · 262k ctx · OpenRouter free',                           provider:'or_kimi',            needsKey:false, source:'OpenRouter Free', ready:true  },
+  { id:'or_qwen80b',         name:'Qwen3 80B',             icon:'🆓', desc:'Alibaba · 262k ctx · MoE · OpenRouter free',                     provider:'or_qwen80b',         needsKey:false, source:'OpenRouter Free', ready:true  },
+  { id:'or_nemo_omni30b',    name:'Nemotron Omni 30B 👁',  icon:'👁', desc:'NVIDIA vision+reasoning · 256k ctx · OpenRouter free',           provider:'or_nemo_omni30b',    needsKey:false, source:'OpenRouter Free', ready:true  },
+  { id:'or_nemo30b',         name:'Nemotron Nano 30B',    icon:'🆓', desc:'NVIDIA · 256k ctx · OpenRouter free',                             provider:'or_nemo30b',         needsKey:false, source:'OpenRouter Free', ready:true  },
+  { id:'or_nemo12b_vl',      name:'Nemotron 12B Vision 👁',icon:'👁', desc:'NVIDIA vision · 128k ctx · OpenRouter free',                     provider:'or_nemo12b_vl',      needsKey:false, source:'OpenRouter Free', ready:true  },
+  { id:'or_nemo9b',          name:'Nemotron Nano 9B',     icon:'🆓', desc:'NVIDIA · 128k ctx · fast · OpenRouter free',                      provider:'or_nemo9b',          needsKey:false, source:'OpenRouter Free', ready:true  },
+  { id:'or_llama3b',         name:'Llama 3.2 3B',         icon:'🆓', desc:'Meta · 131k ctx · tiny & fast · OpenRouter free',                 provider:'or_llama3b',         needsKey:false, source:'OpenRouter Free', ready:true  },
+  { id:'or_laguna_m',        name:'Laguna M.1',            icon:'🆓', desc:'Poolside · 262k ctx · code specialist · OpenRouter free',         provider:'or_laguna_m',        needsKey:false, source:'OpenRouter Free', ready:true  },
+  { id:'or_laguna_xs',       name:'Laguna XS.2',           icon:'🆓', desc:'Poolside · 262k ctx · fast code · OpenRouter free',              provider:'or_laguna_xs',       needsKey:false, source:'OpenRouter Free', ready:true  },
+  { id:'or_nex',             name:'Nex N2 Pro',            icon:'🆓', desc:'Nex AGI · 262k ctx · OpenRouter free',                            provider:'or_nex',             needsKey:false, source:'OpenRouter Free', ready:true  },
+  { id:'or_dolphin',         name:'Dolphin 24B Venice',   icon:'🆓', desc:'CogComp uncensored · 32k ctx · OpenRouter free',                  provider:'or_dolphin',         needsKey:false, source:'OpenRouter Free', ready:true  },
+  { id:'or_lfm_think',       name:'LFM2.5 Thinking',      icon:'🆓', desc:'Liquid AI · thinking model · 32k · OpenRouter free',             provider:'or_lfm_think',       needsKey:false, source:'OpenRouter Free', ready:true  },
+  { id:'or_lfm',             name:'LFM2.5 1.2B',           icon:'🆓', desc:'Liquid AI · tiny fast · 32k ctx · OpenRouter free',              provider:'or_lfm',             needsKey:false, source:'OpenRouter Free', ready:true  },
+  { id:'or_safety',          name:'Nemotron Safety',       icon:'🛡', desc:'NVIDIA content safety model · 128k · OpenRouter free',            provider:'or_safety',          needsKey:false, source:'OpenRouter Free', ready:true  },
+  // ── GitHub Models (4, free with GitHub account) ──────────────────────────
+  { id:'github_llama8b',     name:'Llama 3.1 8B',         icon:'🐙', desc:'GitHub Models · Meta · free',                                     provider:'github_llama8b',     needsKey:false, source:'GitHub Models', ready:true  },
+  { id:'github_llama405b',   name:'Llama 3.1 405B',       icon:'🐙', desc:'GitHub Models · biggest free model · 128k',                       provider:'github_llama405b',   needsKey:false, source:'GitHub Models', ready:true  },
+  { id:'github_gpt4o',       name:'GPT-4o',                icon:'🐙', desc:'GitHub Models · OpenAI GPT-4o · free',                            provider:'github_gpt4o',       needsKey:false, source:'GitHub Models', ready:true  },
+  { id:'github_gpt4omini',   name:'GPT-4o mini',           icon:'🐙', desc:'GitHub Models · OpenAI · fast and free',                          provider:'github_gpt4omini',   needsKey:false, source:'GitHub Models', ready:true  },
+  // ── Other ──────────────────────────────────────────────────────────────────
+  { id:'kai_builtin',        name:'Qwen 2.5 7B',           icon:'✦', desc:'KAI Built-in · HF Inference · needs HF token',                    provider:'kai_builtin',        needsKey:false, source:'HF Inference',  ready:false },
+  { id:'kai_self_hosted',    name:'SmolLM2 1.7B',          icon:'🏠', desc:'Self-hosted · luokai25/kai-llm · MIT license',                   provider:'kai_self_hosted',    needsKey:false, source:'Self-hosted',   ready:false },
+  { id:'groq',               name:'Llama 3.3 70B',         icon:'⚡', desc:'Groq · fastest inference · needs Groq key',                       provider:'groq',               needsKey:true,  source:'Groq',          ready:false },
 ];
 let serverModels = [...MODELS_STATIC];
 
@@ -358,11 +385,18 @@ async function loadServerModels(){
   try{
     const d = await api('/models');
     if(!d.models?.length) return;
-    // Update ready status from server
+    // Merge server data (ready status, benchmark scores) into static list
+    const srvMap = {};
+    d.models.forEach(s => srvMap[s.id] = s);
     serverModels = MODELS_STATIC.map(m => {
-      const srv = d.models.find(s => s.id === m.id);
-      return srv ? { ...m, ready: srv.ready } : m;
+      const srv = srvMap[m.id];
+      if(!srv) return m;
+      return { ...m, ready: srv.ready !== false, benchmark: srv.benchmark || null };
     });
+    // Default to or_openrouter_free if active provider not found
+    if(!serverModels.find(m => m.provider === (lastPingData?.provider || state.activeProvider))){
+      state.activeProvider = 'or_openrouter_free';
+    }
     renderModelPicker(lastPingData);
   }catch(e){ /* keep static fallback */ }
 }
