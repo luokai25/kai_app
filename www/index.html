@@ -65,6 +65,28 @@
   .token-pill.streaming{animation:tokpulse 1s infinite}
   @keyframes tokpulse{0%,100%{opacity:1}50%{opacity:.5}}
   .msg-tok{display:inline-block;font-size:10px;color:var(--dim);margin-top:3px;opacity:0.7}
+  /* chat list items with star/delete */
+  .chatitem{display:flex;align-items:center;gap:8px;padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--line);transition:background .12s}
+  .chatitem:active,.chatitem.active{background:rgba(255,217,107,.08)}
+  .ci-title{flex:1;font-size:14px;font-weight:500;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+  .ci-actions{display:flex;gap:4px;flex-shrink:0;opacity:0;transition:opacity .15s}
+  .chatitem:hover .ci-actions,.chatitem:active .ci-actions{opacity:1}
+  .ci-btn{background:none;border:1px solid var(--line);border-radius:8px;padding:3px 7px;font-size:13px;cursor:pointer;color:var(--dim);transition:all .12s}
+  .ci-btn:active{background:var(--panel2)}
+  .ci-btn.del{color:var(--bad)}
+  .ci-btn.del:active{background:rgba(255,80,80,.12)}
+  /* new chat button in chat list panel */
+  .new-chat-btn{display:flex;align-items:center;justify-content:center;gap:6px;margin:10px 14px;padding:10px;border-radius:14px;border:1px solid var(--line);background:var(--panel2);cursor:pointer;font-size:14px;font-weight:600;color:var(--ink);transition:all .15s}
+  .new-chat-btn:active{background:rgba(255,217,107,.1);border-color:var(--gold)}
+  /* inline image display */
+  .img-bubble{margin:6px 0;border-radius:14px;overflow:hidden;max-width:280px}
+  .img-bubble img{width:100%;display:block;cursor:zoom-in;border-radius:14px}
+  .vid-bubble{margin:6px 0;max-width:280px}
+  .vid-bubble video{width:100%;border-radius:14px}
+  /* agents badge */
+  .agents-badge{font-size:10px;color:#6c63ff;margin-top:4px;opacity:.8}
+  /* used tools */
+  .used{font-size:10px;color:var(--dim);margin-top:3px;opacity:.7}
   /* feedback buttons */
   .fb-row{display:flex;align-items:center;gap:4px;margin-top:4px;padding-left:2px}
   .fb-btn{background:none;border:1px solid var(--line);border-radius:8px;padding:2px 8px;font-size:13px;cursor:pointer;color:var(--dim);line-height:1.4}
@@ -227,9 +249,12 @@
 <div class="scrim" id="scrimL"></div>
 <div class="panel left" id="panelL">
   <h3>KAI</h3>
+  <div class="new-chat-btn" id="newChatBtn">✦ New Chat</div>
   <div class="row" id="goSetup"><span class="ic">⚙</span> Setup / API key</div>
   <div class="row" id="goNotes"><span class="ic">📝</span> What KAI remembers</div>
   <div class="row" id="goLessons"><span class="ic">🧠</span> What KAI learned</div>
+  <div class="row" id="goImageGen"><span class="ic">🎨</span> Generate image</div>
+  <div class="row" id="goReelGen"><span class="ic">🎬</span> Create reel</div>
   <div class="sec">Chats</div>
   <div class="chatlist" id="chatlist"></div>
 </div>
