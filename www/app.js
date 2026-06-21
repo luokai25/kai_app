@@ -1,31 +1,33 @@
-// KAI thin client — everything on the server. This file just renders + posts.
+// KAI — Jarvis-mode thin client. Voice always active. Everything on the server.
 (function(){
 'use strict';
 
 const DEFAULT_SERVER = 'https://hpjvnohzhpkopisfaemz.supabase.co/functions/v1/kai-brain';
 const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhwanZub2h6aHBrb3Bpc2ZhZW16Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2MDU5NTcsImV4cCI6MjA5NjE4MTk1N30.f_FubOdzFCLejJGvf-1WNzRLhe__hKzoh2IX0NcDhqM';
 const DEFAULT_KAI_KEY = 'kai_Om34heIJMU5MIRTXaaeEiHIUzhvnPjXt';
-const BUILD_TAG = 'N';       // bumped every APK release
-const GH_REPO  = 'luokai25/kai_app';
-const GH_TOKEN = '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';
+const BUILD_TAG = 'O';        // ← bumped to O
+const GH_REPO   = 'luokai25/kai_app';
+const GH_TOKEN  = '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';
 
-// ---- state, persisted to localStorage ----
+// ── state ──────────────────────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
 let state = JSON.parse(localStorage.getItem('kai_thin') || '{}');
-if(!state.server) state.server = DEFAULT_SERVER;
-if(!state.kaiKey) state.kaiKey = DEFAULT_KAI_KEY;
+if(!state.server)    state.server    = DEFAULT_SERVER;
+if(!state.kaiKey)    state.kaiKey    = DEFAULT_KAI_KEY;
 if(!state.devSecret){
-  // generate one
   const a = new Uint8Array(24); crypto.getRandomValues(a);
   state.devSecret = btoa(String.fromCharCode(...a)).replace(/[+/=]/g,'').slice(0,28);
 }
+// Jarvis prefs persisted
+if(state.jarvisEnabled === undefined) state.jarvisEnabled = true;
+if(state.jarvisVolume  === undefined) state.jarvisVolume  = 1.0;
 function persist(){ localStorage.setItem('kai_thin', JSON.stringify(state)); }
 persist();
 
 let currentChatId = null;
-let chatsCache = [];
+let chatsCache    = [];
 
-// ---- API helpers ----
+// ── API ────────────────────────────────────────────────────────────────────
 async function api(path, opts){
   opts = opts || {};
   const headers = {
@@ -41,11 +43,11 @@ async function api(path, opts){
   });
   const text = await res.text();
   let data; try { data = JSON.parse(text); } catch { data = { _raw: text }; }
-  if(!res.ok) throw new Error(data.error || ('HTTP '+res.status));
+  if(!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
   return data;
 }
 
-// ---- server status ----
+// ── server status ──────────────────────────────────────────────────────────
 let lastPingData = null;
 async function checkServer(){
   try{
@@ -53,33 +55,39 @@ async function checkServer(){
     const d = await api('/ping');
     lastPingData = d;
     const provLabel = d.provider === 'kai_builtin' ? 'KAI AI' : (d.provider || 'no provider');
-    const keyOk = d.provider === 'kai_builtin' ? d.has_builtin_ai : (d.has_groq || d.has_hf || d.has_openai || d.has_cerebras || d.has_mistral);
+    const keyOk = d.provider === 'kai_builtin'
+      ? d.has_builtin_ai
+      : (d.has_groq || d.has_hf || d.has_openai || d.has_cerebras || d.has_mistral);
     const learnedStr = d.lessons_learned ? ` · ${d.lessons_learned} lessons` : '';
     setStatus(keyOk ? `${provLabel} · ready${learnedStr}` : `${provLabel} · set a key`, keyOk || true);
     updateBuiltinStatus(d);
     renderModelPicker(d);
-    loadServerModels(); // refresh model ready-states from server in background
+    loadServerModels();
     return true;
   }catch(e){
-    setStatus('disconnected: '+e.message, false, true);
+    setStatus('disconnected: ' + e.message, false, true);
     return false;
   }
 }
+
+// BUG FIX: modepill element now exists (added to HTML). Safe null guard too.
 function setStatus(text, ok, err){
   const dot = $('srvDot');
-  dot.classList.toggle('on', !!ok);
-  dot.classList.toggle('err', !!err);
-  $('modepill').textContent = text;
+  if(dot){
+    dot.classList.toggle('on',  !!ok);
+    dot.classList.toggle('err', !!err);
+  }
+  const pill = $('modepill');
+  if(pill) pill.textContent = text;
 }
 
-// ---- render messages ----
-function esc(s){ return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+// ── helpers ────────────────────────────────────────────────────────────────
+function esc(s){ return (s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
 function linkify(text){
-  // Convert URLs to clickable links, with special styling for Supabase artifact URLs
   const escaped = esc(text);
   return escaped.replace(/(https?:\/\/[^\s<]+)/g, (url)=>{
     const isArtifact = url.includes('/storage/v1/object/public/kai-artifacts/');
-    // pull the filename from end of artifact URL for a nice label
     if(isArtifact){
       const m = url.match(/\d+_([^/]+)$/);
       const fname = m ? m[1] : 'file';
@@ -90,7 +98,7 @@ function linkify(text){
     return `<a href="${url}" target="_blank" rel="noopener" style="color:var(--gold);text-decoration:underline">${esc(url.length>50?url.slice(0,47)+'…':url)}</a>`;
   });
 }
-// Track which messages we've rated this session
+
 const ratedMessages = new Set();
 
 function renderMessages(msgs){
@@ -98,7 +106,6 @@ function renderMessages(msgs){
   c.innerHTML = msgs.map(m=>{
     const klass = m.role === 'user' ? 'me' : 'kai';
     const rawText = m.text || '';
-    // Inline image rendering — URLs ending in image extensions or from our storage
     const imgUrls = [
       ...(m.meta?.image_urls||[]),
       ...(rawText.match(/https?:\/\/hpjvnohzhpkopisfaemz\.supabase\.co\/storage\/v1\/object\/public\/kai-artifacts\/[^\s"<>]+/g)||[]),
@@ -107,12 +114,10 @@ function renderMessages(msgs){
     const imgHtml = imgUrls.map(u=>
       `<div class="img-bubble"><img src="${esc(u)}" loading="lazy" onclick="expandImg('${esc(u)}')" /></div>`
     ).join('');
-    // Inline video rendering
     const vidUrls = rawText.match(/https?:\/\/\S+\.(mp4|webm|mov)(\?[^\s]*)?/gi)||[];
     const vidHtml = vidUrls.map(u=>
       `<div class="vid-bubble"><video src="${esc(u)}" controls playsinline preload="metadata"></video></div>`
     ).join('');
-    // Clean text — strip image/video URLs that are now displayed inline
     const cleanText = rawText
       .replace(/https?:\/\/hpjvnohzhpkopisfaemz\.supabase\.co\/storage\/v1\/object\/public\/kai-artifacts\/[^\s"<>]+/g,'')
       .replace(/https?:\/\/image\.pollinations\.ai\/[^\s"<>]+/g,'')
@@ -122,7 +127,6 @@ function renderMessages(msgs){
     const used = m.meta?.used?.length ? `<div class="used">🔧 ${esc(m.meta.used.join(', '))}</div>` : '';
     const tokBadge = (m.role==='kai' && m.meta?.tokens)
       ? `<span class="msg-tok">~${m.meta.tokens>=1000?(m.meta.tokens/1000).toFixed(1)+'k':m.meta.tokens} tok</span>` : '';
-    // Agentic mode participants
     const agents = m.meta?.participants?.length
       ? `<div class="agents-badge">🤖 ${m.meta.participants.map(p=>p.split('_').pop()||p).join(' · ')}</div>` : '';
     let feedbackRow = '';
@@ -138,18 +142,19 @@ function renderMessages(msgs){
   }).join('');
   c.scrollTop = c.scrollHeight;
 }
-// Expand image fullscreen
+
 function expandImg(url){
   const ov = document.createElement('div');
   ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:999;display:flex;align-items:center;justify-content:center;cursor:zoom-out';
   const img = document.createElement('img');
-  img.src=url;img.style.cssText='max-width:95%;max-height:95%;border-radius:12px;object-fit:contain';
+  img.src=url; img.style.cssText='max-width:95%;max-height:95%;border-radius:12px;object-fit:contain';
   ov.appendChild(img);
   ov.onclick=()=>ov.remove();
   document.body.appendChild(ov);
 }
+window.expandImg = expandImg;
 
-// Prompt dialogs for quick access from menu
+// ── image / reel generation ────────────────────────────────────────────────
 function promptImageGen(){
   const p = prompt('Describe the image:\n\nExamples: "sunset over cairo, photorealistic"\n"anime warrior, dramatic lighting"');
   if(p?.trim()) generateImage(p.trim());
@@ -175,22 +180,15 @@ async function generateImage(prompt, style=''){
   }
 }
 
-// ── Faceless reels creator ───────────────────────────────────────────────
-const REEL_TYPES = ['motivational','educational','storytelling','product','finance','fitness','spiritual','travel','tech','comedy'];
-const REEL_STYLES = ['minimal','dark-luxury','aesthetic','cinematic','corporate','vibrant','retro','anime'];
-
 async function generateReel(input){
-  // Parse topic and options from input: e.g. "success mindset --type=motivational --style=dark-luxury"
   let topic = input, type = 'motivational', style = 'minimal', scenes = 5;
-  const typeM = input.match(/--type=(\S+)/);   if(typeM){ type=typeM[1]; topic=topic.replace(typeM[0],'').trim(); }
-  const styleM = input.match(/--style=(\S+)/); if(styleM){ style=styleM[1]; topic=topic.replace(styleM[0],'').trim(); }
-  const sceneM = input.match(/--scenes=(\d+)/);if(sceneM){ scenes=parseInt(sceneM[1]); topic=topic.replace(sceneM[0],'').trim(); }
-
+  const typeM  = input.match(/--type=(\S+)/);   if(typeM){  type=typeM[1];   topic=topic.replace(typeM[0],'').trim(); }
+  const styleM = input.match(/--style=(\S+)/);  if(styleM){ style=styleM[1]; topic=topic.replace(styleM[0],'').trim(); }
+  const sceneM = input.match(/--scenes=(\d+)/); if(sceneM){ scenes=parseInt(sceneM[1]); topic=topic.replace(sceneM[0],'').trim(); }
   const localMsgs = currentChatId ? ((await api('/messages?chat_id='+currentChatId).catch(()=>({messages:[]}))).messages||[]) : [];
   localMsgs.push({role:'user', text:`/reel ${input}`});
   localMsgs.push({role:'kai', text:`🎬 Creating ${type} reel (${style} style, ${scenes} scenes)…`, _streaming:true});
   renderMessages(localMsgs);
-
   try{
     const r = await api('/generate-reel', { method:'POST', body:{ topic, type, style, scenes, chat_id: currentChatId } });
     if(r.error) throw new Error(r.error);
@@ -205,21 +203,26 @@ async function generateReel(input){
     renderMessages(localMsgs);
   }
 }
+
+// ── feedback ───────────────────────────────────────────────────────────────
 async function sendFeedback(messageId, rating){
   if(ratedMessages.has(messageId + rating)) return;
   ratedMessages.add(messageId + rating);
-  const row = $('fb-'+messageId);
+  const row = $('fb-' + messageId);
   if(row) row.innerHTML = `<span class="fb-note" style="color:var(--gold)">saving…</span>`;
   try{
     await api('/feedback', { method:'POST', body:{ message_id: messageId, rating } });
     if(row){
       if(rating === 1) row.innerHTML = `<span class="fb-note" style="color:var(--good)">👍 noted — KAI will do more of this</span>`;
-      else row.innerHTML = `<span class="fb-note" style="color:var(--dim)">👎 noted — KAI is learning from this</span>`;
+      else             row.innerHTML = `<span class="fb-note" style="color:var(--dim)">👎 noted — KAI is learning from this</span>`;
     }
   }catch(e){
     if(row) row.innerHTML = `<span class="fb-note" style="color:var(--bad)">failed</span>`;
   }
 }
+window.sendFeedback = sendFeedback;
+
+// ── chat loading ───────────────────────────────────────────────────────────
 async function loadCurrentChat(){
   if(!currentChatId){ $('msgs').innerHTML = '<div class="empty">Tap to start a conversation with KAI.</div>'; return; }
   try{
@@ -233,29 +236,23 @@ async function loadChatList(){
     chatsCache = d.chats || [];
     const el = $('chatlist');
     if(!chatsCache.length){ el.innerHTML = '<div class="empty">no chats yet</div>'; return; }
-    // Starred first, then by date
     const sorted = [...chatsCache].sort((a,b)=>{
       if(a.starred && !b.starred) return -1;
-      if(!a.starred && b.starred) return 1;
+      if(!a.starred && b.starred) return  1;
       return 0;
     });
     el.innerHTML = sorted.map(c=>`
       <div class="chatitem ${c.id===currentChatId?'active':''}" data-id="${c.id}">
         <div class="ci-title">${c.starred?'⭐ ':''}${esc(c.title||'Untitled')}</div>
         <div class="ci-actions">
-          <button class="ci-btn" data-star="${c.id}" title="${c.starred?'Unstar':'Star'}">
-            ${c.starred?'★':'☆'}
-          </button>
+          <button class="ci-btn" data-star="${c.id}" title="${c.starred?'Unstar':'Star'}">${c.starred?'★':'☆'}</button>
           <button class="ci-btn del" data-del="${c.id}" title="Delete">🗑</button>
         </div>
       </div>`).join('');
     el.querySelectorAll('.chatitem').forEach(row=>{
-      // Tap the title area to open chat
       row.querySelector('.ci-title').onclick = ()=>{
         currentChatId = row.dataset.id;
-        loadCurrentChat();
-        loadChatList();
-        closeAll();
+        loadCurrentChat(); loadChatList(); closeAll();
       };
     });
     el.querySelectorAll('[data-star]').forEach(btn=>{
@@ -266,16 +263,11 @@ async function loadChatList(){
     });
   }catch(e){ $('chatlist').innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
 }
-async function starChat(id){
-  await api(`/chat/${id}/star`, { method:'POST' });
-}
+async function starChat(id){ await api(`/chat/${id}/star`, { method:'POST' }); }
 async function deleteChat(id){
   if(!confirm('Delete this chat? This cannot be undone.')) return;
   await api(`/chat/${id}`, { method:'DELETE' });
-  if(currentChatId === id){
-    currentChatId = null;
-    $('msgs').innerHTML = '';
-  }
+  if(currentChatId === id){ currentChatId = null; $('msgs').innerHTML = ''; }
   loadChatList();
 }
 async function newChat(){
@@ -285,33 +277,34 @@ async function newChat(){
   $('input').focus();
 }
 
-// ---- send a message ----
+// ── BUG FIX: clearImages properly defined ────────────────────────────────
+function clearImages(){
+  pendingImages = [];
+  renderAttachPreview();
+}
+
+// ── send ───────────────────────────────────────────────────────────────────
 async function send(){
-  const inp = $('input');
+  const inp  = $('input');
   const text = (inp.value || '').trim();
   if(!text && !pendingImages.filter(p=>p.url).length) return;
   if(!state.kaiKey){ alert('Set your KAI API key first (menu → Setup)'); return; }
   inp.value = ''; inp.style.height = '44px';
   $('sendBtn').disabled = true;
 
-  // Slash commands
   if(text.startsWith('/image ')){
-    const prompt = text.slice(7).trim();
-    await generateImage(prompt);
+    await generateImage(text.slice(7).trim());
     $('sendBtn').disabled = false;
     return;
   }
   if(text.startsWith('/reel ')){
-    const topic = text.slice(6).trim();
-    await generateReel(topic);
+    await generateReel(text.slice(6).trim());
     $('sendBtn').disabled = false;
     return;
   }
 
-  // optimistic render
   const localMsgs = [];
   try{
-    // load existing messages first
     if(currentChatId){
       const d = await api('/messages?chat_id='+currentChatId);
       (d.messages||[]).forEach(m=>localMsgs.push(m));
@@ -323,7 +316,6 @@ async function send(){
   renderMessages(localMsgs);
 
   try{
-    // Agentic mode: all models collaborate, non-streaming
     if(agentMode){
       localMsgs[placeholderIdx] = {role:'kai', text:'🤖 All models thinking…', _streaming:true};
       renderMessages(localMsgs);
@@ -336,41 +328,38 @@ async function send(){
       const agentTok = r.tokens || 0;
       addTokens(agentTok);
       streamingTokens = 0;
-      // Show synthesis + which models participated
-      const participated = r.participants?.join(', ') || r.provider || 'multiple models';
       localMsgs[placeholderIdx] = {
         role:'kai', text: r.reply,
         meta:{ used: r.used||[], tokens: agentTok, participants: r.participants }
       };
       renderMessages(localMsgs);
-      clearImages();
+      clearImages();   // BUG FIX: was undefined before
       $('sendBtn').disabled = false;
+      // Jarvis auto-speak
+      if(state.jarvisEnabled) jarvisSpeak(r.reply);
       return;
     }
-    // Use streaming endpoint if available, fall back to /chat
+
     const headers = {
       'Content-Type': 'application/json',
       'Authorization': 'Bearer ' + ANON_KEY,
       'x-kai-key': state.kaiKey,
     };
     const res = await fetch(state.server + '/chat/stream', {
-      method: 'POST', headers,
+      method:'POST', headers,
       body: JSON.stringify({ chat_id: currentChatId, text, image_urls: pendingImages.filter(p=>p.url).map(p=>p.url) }),
     });
     if(!res.ok){
-      // fall back to non-streaming
       const errData = await res.json().catch(()=>({}));
-      throw new Error(errData.error || ('HTTP '+res.status));
+      throw new Error(errData.error || ('HTTP ' + res.status));
     }
-    const reader = res.body.getReader();
+    const reader  = res.body.getReader();
     const decoder = new TextDecoder();
-    let buffer = '';
-    let accumulated = '';
+    let buffer = '', accumulated = '';
     while(true){
       const {done, value} = await reader.read();
       if(done) break;
       buffer += decoder.decode(value, {stream:true});
-      // SSE format: data: {...} (per event)
       const events = buffer.split('\n\n');
       buffer = events.pop() || '';
       for(const ev of events){
@@ -378,10 +367,9 @@ async function send(){
         if(!line) continue;
         try{
           const evt = JSON.parse(line);
-          if(evt.type === 'chat_id') currentChatId = evt.chat_id;
+          if(evt.type === 'chat_id'){ currentChatId = evt.chat_id; }
           else if(evt.type === 'delta'){
             accumulated += evt.text;
-            // Real-time token estimate: ~4 chars per token
             streamingTokens = Math.round(accumulated.length / 4);
             updateTokenDisplay(sessionTokens + streamingTokens, true);
             localMsgs[placeholderIdx] = {role:'kai', text: accumulated, _streaming:true};
@@ -391,52 +379,46 @@ async function send(){
             localMsgs[placeholderIdx].meta = {used: evt.used};
           }
           else if(evt.type === 'done'){
-            // Use server token count if available, else finalise estimate
-            const serverTok = evt.tokens || 0;
-            const finalTok = serverTok || streamingTokens;
-            addTokens(finalTok);
-            streamingTokens = 0;
+            const finalTok = evt.tokens || streamingTokens;
+            addTokens(finalTok); streamingTokens = 0;
             localMsgs[placeholderIdx] = {
               role:'kai', text: evt.reply,
               meta:{ used: evt.used||[], tokens: finalTok }
             };
             renderMessages(localMsgs);
+            // Jarvis auto-speak every reply
+            if(state.jarvisEnabled) jarvisSpeak(evt.reply);
           }
-          else if(evt.type === 'error'){
-            throw new Error(evt.error || 'stream error');
-          }
+          else if(evt.type === 'error'){ throw new Error(evt.error || 'stream error'); }
         }catch(e){
           if(e.message && !e.message.includes('JSON')) throw e;
         }
       }
     }
     await loadChatList();
-    pendingImages = [];
-    renderAttachPreview();
+    clearImages();
   }catch(e){
-    localMsgs[placeholderIdx] = {role:'kai', text:'⚠ '+e.message};
+    localMsgs[placeholderIdx] = {role:'kai', text:'⚠ ' + e.message};
     renderMessages(localMsgs);
   }finally{
     $('sendBtn').disabled = false;
   }
 }
 
-// ---- panels ----
+// ── panels ─────────────────────────────────────────────────────────────────
 function openP(scrim, panel){ closeAll(); $(scrim).classList.add('on'); $(panel).classList.add('on'); }
 function closeAll(){
   ['scrimL','panelL','scrimS','panelS','scrimC','panelC','scrimN','panelN','scrimK','panelK'].forEach(id=>$(id)?.classList.remove('on'));
 }
 
-// ---- lessons panel ----
+// ── lessons ────────────────────────────────────────────────────────────────
 async function loadLessons(){
   const list = $('lessonsList');
-  const countEl = $('lessonCount');
   if(!list) return;
   list.innerHTML = '<div class="empty" style="padding:16px">loading…</div>';
   try{
     const d = await api('/lessons');
     const lessons = d.lessons || [];
-    if(countEl) countEl.textContent = `(${lessons.length})`;
     if(!lessons.length){
       list.innerHTML = '<div class="empty" style="padding:16px;color:var(--dim)">No lessons yet — chat with KAI and give feedback to help him learn.</div>';
       return;
@@ -460,34 +442,33 @@ async function runSelfEvalNow(){
   if(btn) btn.textContent = 'running…';
   try{
     const r = await api('/self-eval', { method:'POST' });
-    if(btn) btn.textContent = r.ok ? '✓ Done — lessons updated' : '⚠ '+r.error;
+    if(btn) btn.textContent = r.ok ? '✓ Done — lessons updated' : '⚠ ' + r.error;
     setTimeout(()=>{ if(btn) btn.textContent = '▶ Run self-eval now'; loadLessons(); }, 2000);
   }catch(e){
-    if(btn) btn.textContent = '⚠ '+e.message;
+    if(btn) btn.textContent = '⚠ ' + e.message;
     setTimeout(()=>{ if(btn) btn.textContent = '▶ Run self-eval now'; }, 3000);
   }
 }
-// ---- APK update banner ----
+
+// ── APK update banner ───────────────────────────────────────────────────────
 async function checkForAppUpdate(){
   try{
     const r = await fetch(`https://api.github.com/repos/${GH_REPO}/releases/latest`, {
-      headers:{ 'Authorization':'token '+GH_TOKEN }
+      headers:{ 'Authorization':'token ' + GH_TOKEN }
     });
     const d = await r.json();
-    // Commit message or release name contains "Build K — ..."
     const body = (d.body||d.name||'').toUpperCase();
     const match = body.match(/BUILD ([A-Z]+)/);
     if(!match) return;
     const latestBuild = match[1];
-    // Compare: convert letter(s) to index
     const toIdx = s => s.split('').reduce((a,c)=>a*26+(c.charCodeAt(0)-64), 0);
     if(toIdx(latestBuild) > toIdx(BUILD_TAG)){
       showUpdateBanner(latestBuild, d.assets?.[0]?.browser_download_url || d.html_url);
     }
-  }catch(e){ /* silent — offline or rate-limited */ }
+  }catch(e){ /* silent */ }
 }
 function showUpdateBanner(buildLetter, downloadUrl){
-  if($('updateBanner')) return; // already showing
+  if($('updateBanner')) return;
   const b = document.createElement('div');
   b.id = 'updateBanner';
   b.className = 'update-banner';
@@ -496,59 +477,53 @@ function showUpdateBanner(buildLetter, downloadUrl){
     `<span class="ub-close" onclick="document.getElementById('updateBanner').remove()">✕</span>`;
   document.body.insertBefore(b, document.body.firstChild);
 }
-let sessionTokens = 0;
-let streamingTokens = 0;
 
+// ── token display ───────────────────────────────────────────────────────────
+let sessionTokens   = 0;
+let streamingTokens = 0;
 function updateTokenDisplay(tokens, streaming=false){
-  const pill = $('tokenPill');
+  const pill  = $('tokenPill');
   const count = $('tokenCount');
   if(!pill||!count) return;
-  const display = tokens >= 1000
-    ? (tokens/1000).toFixed(1)+'k'
-    : String(tokens);
-  count.textContent = display;
+  count.textContent = tokens >= 1000 ? (tokens/1000).toFixed(1)+'k' : String(tokens);
   pill.style.display = 'flex';
   pill.classList.toggle('streaming', streaming);
 }
-function addTokens(n){
-  sessionTokens += n;
-  updateTokenDisplay(sessionTokens);
-}
+function addTokens(n){ sessionTokens += n; updateTokenDisplay(sessionTokens); }
+
+// ── models ─────────────────────────────────────────────────────────────────
 const MODELS_STATIC = [
-  // ── OpenRouter Free (24 models, price=$0 forever, no credit card) ──────────
-  { id:'or_openrouter_free', name:'OpenRouter Auto',      icon:'🆓', desc:'Best free model auto-selected · always free · OpenRouter',        provider:'or_openrouter_free', needsKey:false, source:'OpenRouter Free', ready:true  },
-  { id:'or_qwen3_coder',     name:'Qwen3 Coder 480B',    icon:'🔥', desc:'480B coding specialist · 1M ctx · OpenRouter free',               provider:'or_qwen3_coder',     needsKey:false, source:'OpenRouter Free', ready:true  },
-  { id:'or_nemotron550b',    name:'Nemotron Ultra 550B',  icon:'🔥', desc:'NVIDIA 550B · 1M ctx · top benchmark · OpenRouter free',          provider:'or_nemotron550b',    needsKey:false, source:'OpenRouter Free', ready:true  },
-  { id:'or_nemotron120b',    name:'Nemotron Super 120B',  icon:'🔥', desc:'NVIDIA 120B · 1M ctx · fast · OpenRouter free',                   provider:'or_nemotron120b',    needsKey:false, source:'OpenRouter Free', ready:true  },
-  { id:'or_gptoss120b',      name:'GPT-OSS 120B',         icon:'🔥', desc:'OpenAI open 120B · 131k ctx · OpenRouter free',                   provider:'or_gptoss120b',      needsKey:false, source:'OpenRouter Free', ready:true  },
-  { id:'or_gptoss20b',       name:'GPT-OSS 20B',          icon:'🆓', desc:'OpenAI open 20B · 131k ctx · fast · OpenRouter free',             provider:'or_gptoss20b',       needsKey:false, source:'OpenRouter Free', ready:true  },
-  { id:'or_llama70b',        name:'Llama 3.3 70B',        icon:'🔥', desc:'Meta · 131k ctx · top open model · OpenRouter free',              provider:'or_llama70b',        needsKey:false, source:'OpenRouter Free', ready:true  },
-  { id:'or_hermes405b',      name:'Hermes 3 405B',        icon:'🔥', desc:'NousResearch · Llama 405B fine-tune · 131k · OpenRouter free',    provider:'or_hermes405b',      needsKey:false, source:'OpenRouter Free', ready:true  },
-  { id:'or_gemma31b',        name:'Gemma 4 31B',          icon:'🆓', desc:'Google · 262k ctx · OpenRouter free',                             provider:'or_gemma31b',        needsKey:false, source:'OpenRouter Free', ready:true  },
-  { id:'or_gemma26b',        name:'Gemma 4 26B',          icon:'🆓', desc:'Google MoE · 262k ctx · OpenRouter free',                        provider:'or_gemma26b',        needsKey:false, source:'OpenRouter Free', ready:true  },
-  { id:'or_kimi',            name:'Kimi K2.6',             icon:'🆓', desc:'Moonshot · 262k ctx · OpenRouter free',                           provider:'or_kimi',            needsKey:false, source:'OpenRouter Free', ready:true  },
-  { id:'or_qwen80b',         name:'Qwen3 80B',             icon:'🆓', desc:'Alibaba · 262k ctx · MoE · OpenRouter free',                     provider:'or_qwen80b',         needsKey:false, source:'OpenRouter Free', ready:true  },
-  { id:'or_nemo_omni30b',    name:'Nemotron Omni 30B 👁',  icon:'👁', desc:'NVIDIA vision+reasoning · 256k ctx · OpenRouter free',           provider:'or_nemo_omni30b',    needsKey:false, source:'OpenRouter Free', ready:true  },
-  { id:'or_nemo30b',         name:'Nemotron Nano 30B',    icon:'🆓', desc:'NVIDIA · 256k ctx · OpenRouter free',                             provider:'or_nemo30b',         needsKey:false, source:'OpenRouter Free', ready:true  },
-  { id:'or_nemo12b_vl',      name:'Nemotron 12B Vision 👁',icon:'👁', desc:'NVIDIA vision · 128k ctx · OpenRouter free',                     provider:'or_nemo12b_vl',      needsKey:false, source:'OpenRouter Free', ready:true  },
-  { id:'or_nemo9b',          name:'Nemotron Nano 9B',     icon:'🆓', desc:'NVIDIA · 128k ctx · fast · OpenRouter free',                      provider:'or_nemo9b',          needsKey:false, source:'OpenRouter Free', ready:true  },
-  { id:'or_llama3b',         name:'Llama 3.2 3B',         icon:'🆓', desc:'Meta · 131k ctx · tiny & fast · OpenRouter free',                 provider:'or_llama3b',         needsKey:false, source:'OpenRouter Free', ready:true  },
-  { id:'or_laguna_m',        name:'Laguna M.1',            icon:'🆓', desc:'Poolside · 262k ctx · code specialist · OpenRouter free',         provider:'or_laguna_m',        needsKey:false, source:'OpenRouter Free', ready:true  },
-  { id:'or_laguna_xs',       name:'Laguna XS.2',           icon:'🆓', desc:'Poolside · 262k ctx · fast code · OpenRouter free',              provider:'or_laguna_xs',       needsKey:false, source:'OpenRouter Free', ready:true  },
-  { id:'or_nex',             name:'Nex N2 Pro',            icon:'🆓', desc:'Nex AGI · 262k ctx · OpenRouter free',                            provider:'or_nex',             needsKey:false, source:'OpenRouter Free', ready:true  },
-  { id:'or_dolphin',         name:'Dolphin 24B Venice',   icon:'🆓', desc:'CogComp uncensored · 32k ctx · OpenRouter free',                  provider:'or_dolphin',         needsKey:false, source:'OpenRouter Free', ready:true  },
-  { id:'or_lfm_think',       name:'LFM2.5 Thinking',      icon:'🆓', desc:'Liquid AI · thinking model · 32k · OpenRouter free',             provider:'or_lfm_think',       needsKey:false, source:'OpenRouter Free', ready:true  },
-  { id:'or_lfm',             name:'LFM2.5 1.2B',           icon:'🆓', desc:'Liquid AI · tiny fast · 32k ctx · OpenRouter free',              provider:'or_lfm',             needsKey:false, source:'OpenRouter Free', ready:true  },
-  { id:'or_safety',          name:'Nemotron Safety',       icon:'🛡', desc:'NVIDIA content safety model · 128k · OpenRouter free',            provider:'or_safety',          needsKey:false, source:'OpenRouter Free', ready:true  },
-  // ── GitHub Models (4, free with GitHub account) ──────────────────────────
-  { id:'github_llama8b',     name:'Llama 3.1 8B',         icon:'🐙', desc:'GitHub Models · Meta · free',                                     provider:'github_llama8b',     needsKey:false, source:'GitHub Models', ready:true  },
-  { id:'github_llama405b',   name:'Llama 3.1 405B',       icon:'🐙', desc:'GitHub Models · biggest free model · 128k',                       provider:'github_llama405b',   needsKey:false, source:'GitHub Models', ready:true  },
-  { id:'github_gpt4o',       name:'GPT-4o',                icon:'🐙', desc:'GitHub Models · OpenAI GPT-4o · free',                            provider:'github_gpt4o',       needsKey:false, source:'GitHub Models', ready:true  },
-  { id:'github_gpt4omini',   name:'GPT-4o mini',           icon:'🐙', desc:'GitHub Models · OpenAI · fast and free',                          provider:'github_gpt4omini',   needsKey:false, source:'GitHub Models', ready:true  },
-  // ── Other ──────────────────────────────────────────────────────────────────
-  { id:'kai_builtin',        name:'Qwen 2.5 7B',           icon:'✦', desc:'KAI Built-in · HF Inference · needs HF token',                    provider:'kai_builtin',        needsKey:false, source:'HF Inference',  ready:false },
-  { id:'kai_self_hosted',    name:'SmolLM2 1.7B',          icon:'🏠', desc:'Self-hosted · luokai25/kai-llm · MIT license',                   provider:'kai_self_hosted',    needsKey:false, source:'Self-hosted',   ready:false },
-  { id:'groq',               name:'Llama 3.3 70B',         icon:'⚡', desc:'Groq · fastest inference · needs Groq key',                       provider:'groq',               needsKey:true,  source:'Groq',          ready:false },
+  { id:'or_openrouter_free', name:'OpenRouter Auto',       icon:'🆓', desc:'Best free model auto-selected · always free · OpenRouter',       provider:'or_openrouter_free', needsKey:false, source:'OpenRouter Free', ready:true  },
+  { id:'or_qwen3_coder',     name:'Qwen3 Coder 480B',     icon:'🔥', desc:'480B coding specialist · 1M ctx · OpenRouter free',              provider:'or_qwen3_coder',     needsKey:false, source:'OpenRouter Free', ready:true  },
+  { id:'or_nemotron550b',    name:'Nemotron Ultra 550B',   icon:'🔥', desc:'NVIDIA 550B · 1M ctx · top benchmark · OpenRouter free',         provider:'or_nemotron550b',    needsKey:false, source:'OpenRouter Free', ready:true  },
+  { id:'or_nemotron120b',    name:'Nemotron Super 120B',   icon:'🔥', desc:'NVIDIA 120B · 1M ctx · fast · OpenRouter free',                  provider:'or_nemotron120b',    needsKey:false, source:'OpenRouter Free', ready:true  },
+  { id:'or_gptoss120b',      name:'GPT-OSS 120B',          icon:'🔥', desc:'OpenAI open 120B · 131k ctx · OpenRouter free',                  provider:'or_gptoss120b',      needsKey:false, source:'OpenRouter Free', ready:true  },
+  { id:'or_gptoss20b',       name:'GPT-OSS 20B',           icon:'🆓', desc:'OpenAI open 20B · 131k ctx · fast · OpenRouter free',            provider:'or_gptoss20b',       needsKey:false, source:'OpenRouter Free', ready:true  },
+  { id:'or_llama70b',        name:'Llama 3.3 70B',         icon:'🔥', desc:'Meta · 131k ctx · top open model · OpenRouter free',             provider:'or_llama70b',        needsKey:false, source:'OpenRouter Free', ready:true  },
+  { id:'or_hermes405b',      name:'Hermes 3 405B',         icon:'🔥', desc:'NousResearch · Llama 405B fine-tune · 131k · OpenRouter free',   provider:'or_hermes405b',      needsKey:false, source:'OpenRouter Free', ready:true  },
+  { id:'or_gemma31b',        name:'Gemma 4 31B',           icon:'🆓', desc:'Google · 262k ctx · OpenRouter free',                            provider:'or_gemma31b',        needsKey:false, source:'OpenRouter Free', ready:true  },
+  { id:'or_gemma26b',        name:'Gemma 4 26B',           icon:'🆓', desc:'Google MoE · 262k ctx · OpenRouter free',                        provider:'or_gemma26b',        needsKey:false, source:'OpenRouter Free', ready:true  },
+  { id:'or_kimi',            name:'Kimi K2.6',              icon:'🆓', desc:'Moonshot · 262k ctx · OpenRouter free',                          provider:'or_kimi',            needsKey:false, source:'OpenRouter Free', ready:true  },
+  { id:'or_qwen80b',         name:'Qwen3 80B',              icon:'🆓', desc:'Alibaba · 262k ctx · MoE · OpenRouter free',                    provider:'or_qwen80b',         needsKey:false, source:'OpenRouter Free', ready:true  },
+  { id:'or_nemo_omni30b',    name:'Nemotron Omni 30B 👁',   icon:'👁', desc:'NVIDIA vision+reasoning · 256k ctx · OpenRouter free',          provider:'or_nemo_omni30b',    needsKey:false, source:'OpenRouter Free', ready:true  },
+  { id:'or_nemo30b',         name:'Nemotron Nano 30B',     icon:'🆓', desc:'NVIDIA · 256k ctx · OpenRouter free',                            provider:'or_nemo30b',         needsKey:false, source:'OpenRouter Free', ready:true  },
+  { id:'or_nemo12b_vl',      name:'Nemotron 12B Vision 👁', icon:'👁', desc:'NVIDIA vision · 128k ctx · OpenRouter free',                    provider:'or_nemo12b_vl',      needsKey:false, source:'OpenRouter Free', ready:true  },
+  { id:'or_nemo9b',          name:'Nemotron Nano 9B',      icon:'🆓', desc:'NVIDIA · 128k ctx · fast · OpenRouter free',                     provider:'or_nemo9b',          needsKey:false, source:'OpenRouter Free', ready:true  },
+  { id:'or_llama3b',         name:'Llama 3.2 3B',          icon:'🆓', desc:'Meta · 131k ctx · tiny & fast · OpenRouter free',                provider:'or_llama3b',         needsKey:false, source:'OpenRouter Free', ready:true  },
+  { id:'or_laguna_m',        name:'Laguna M.1',             icon:'🆓', desc:'Poolside · 262k ctx · code specialist · OpenRouter free',        provider:'or_laguna_m',        needsKey:false, source:'OpenRouter Free', ready:true  },
+  { id:'or_laguna_xs',       name:'Laguna XS.2',            icon:'🆓', desc:'Poolside · 262k ctx · fast code · OpenRouter free',             provider:'or_laguna_xs',       needsKey:false, source:'OpenRouter Free', ready:true  },
+  { id:'or_nex',             name:'Nex N2 Pro',             icon:'🆓', desc:'Nex AGI · 262k ctx · OpenRouter free',                           provider:'or_nex',             needsKey:false, source:'OpenRouter Free', ready:true  },
+  { id:'or_dolphin',         name:'Dolphin 24B Venice',    icon:'🆓', desc:'CogComp uncensored · 32k ctx · OpenRouter free',                 provider:'or_dolphin',         needsKey:false, source:'OpenRouter Free', ready:true  },
+  { id:'or_lfm_think',       name:'LFM2.5 Thinking',       icon:'🆓', desc:'Liquid AI · thinking model · 32k · OpenRouter free',            provider:'or_lfm_think',       needsKey:false, source:'OpenRouter Free', ready:true  },
+  { id:'or_lfm',             name:'LFM2.5 1.2B',            icon:'🆓', desc:'Liquid AI · tiny fast · 32k ctx · OpenRouter free',             provider:'or_lfm',             needsKey:false, source:'OpenRouter Free', ready:true  },
+  { id:'or_safety',          name:'Nemotron Safety',        icon:'🛡', desc:'NVIDIA content safety model · 128k · OpenRouter free',           provider:'or_safety',          needsKey:false, source:'OpenRouter Free', ready:true  },
+  { id:'github_llama8b',     name:'Llama 3.1 8B',          icon:'🐙', desc:'GitHub Models · Meta · free',                                    provider:'github_llama8b',     needsKey:false, source:'GitHub Models',   ready:true  },
+  { id:'github_llama405b',   name:'Llama 3.1 405B',        icon:'🐙', desc:'GitHub Models · biggest free model · 128k',                      provider:'github_llama405b',   needsKey:false, source:'GitHub Models',   ready:true  },
+  { id:'github_gpt4o',       name:'GPT-4o',                 icon:'🐙', desc:'GitHub Models · OpenAI GPT-4o · free',                           provider:'github_gpt4o',       needsKey:false, source:'GitHub Models',   ready:true  },
+  { id:'github_gpt4omini',   name:'GPT-4o mini',            icon:'🐙', desc:'GitHub Models · OpenAI · fast and free',                         provider:'github_gpt4omini',   needsKey:false, source:'GitHub Models',   ready:true  },
+  { id:'kai_builtin',        name:'Qwen 2.5 7B',            icon:'✦', desc:'KAI Built-in · HF Inference · needs HF token',                   provider:'kai_builtin',        needsKey:false, source:'HF Inference',    ready:false },
+  { id:'kai_self_hosted',    name:'SmolLM2 1.7B',           icon:'🏠', desc:'Self-hosted · luokai25/kai-llm · MIT license',                  provider:'kai_self_hosted',    needsKey:false, source:'Self-hosted',     ready:false },
+  { id:'groq',               name:'Llama 3.3 70B',          icon:'⚡', desc:'Groq · fastest inference · needs Groq key',                      provider:'groq',               needsKey:true,  source:'Groq',            ready:false },
 ];
 let serverModels = [...MODELS_STATIC];
 
@@ -556,7 +531,6 @@ async function loadServerModels(){
   try{
     const d = await api('/models');
     if(!d.models?.length) return;
-    // Merge server data (ready status, benchmark scores) into static list
     const srvMap = {};
     d.models.forEach(s => srvMap[s.id] = s);
     serverModels = MODELS_STATIC.map(m => {
@@ -564,7 +538,6 @@ async function loadServerModels(){
       if(!srv) return m;
       return { ...m, ready: srv.ready !== false, benchmark: srv.benchmark || null };
     });
-    // Default to or_openrouter_free if active provider not found
     if(!serverModels.find(m => m.provider === (lastPingData?.provider || state.activeProvider))){
       state.activeProvider = 'or_openrouter_free';
     }
@@ -572,23 +545,18 @@ async function loadServerModels(){
   }catch(e){ /* keep static fallback */ }
 }
 
-// ── Agentic mode state ──────────────────────────────────────
 let agentMode = false;
-
 function toggleAgentMode(){
   agentMode = !agentMode;
   const btn = $('agentBtn');
   if(btn){
     btn.classList.toggle('on', agentMode);
-    btn.title = agentMode
-      ? 'Agentic ON — all models collaborate on your task (click to turn off)'
-      : 'All models collaborate on this task';
+    btn.title     = agentMode ? 'Agentic ON — all models collaborate (click to turn off)' : 'All models collaborate on this task';
     btn.textContent = agentMode ? '🤖 Agentic' : '🤖';
     setStatus(agentMode ? '🤖 Agentic mode — multi-model collaboration' : 'ready', !agentMode);
   }
 }
 
-// ── Quick-chip selection ─────────────────────────────────────
 function wireQuickChips(pingData){
   const currentProvider = pingData?.provider || state.activeProvider || 'or_openrouter_free';
   document.querySelectorAll('.mq-chip').forEach(chip => {
@@ -603,28 +571,22 @@ function wireQuickChips(pingData){
 
 function renderModelPicker(pingData){
   const dropdown = $('modelDropdown');
-  const pill = $('modelPill');
+  if(!dropdown) return;
   const pillName = $('modelPillName');
   const pillIcon = $('modelPillIcon');
+  const pill     = $('modelPill');
   const currentProvider = pingData?.provider || state.activeProvider || 'or_openrouter_free';
-
-  // Find current model
   const current = serverModels.find(m => m.provider === currentProvider) || serverModels[0];
   if(pillName) pillName.textContent = current?.name || 'KAI';
   if(pillIcon) pillIcon.textContent = current?.icon || '✦';
   pill?.classList.toggle('active', current?.ready !== false);
-
-  // Wire quick chips
   wireQuickChips(pingData);
 
-  // Group models by source
   const sources = {};
   for(const m of serverModels){
     if(!sources[m.source]) sources[m.source] = [];
     sources[m.source].push(m);
   }
-
-  // Source labels and order
   const srcOrder = ['OpenRouter Free','GitHub Models','HF Inference','Self-hosted','Groq'];
   const srcLabel = {
     'OpenRouter Free': '🆓 OpenRouter Free — 24 models, $0 forever',
@@ -633,43 +595,25 @@ function renderModelPicker(pingData){
     'Self-hosted':     '🏠 Self-hosted — luokai25/kai-llm',
     'Groq':            '⚡ Groq — bring your own key',
   };
-
-  // Keep handle
   dropdown.innerHTML = '<div class="md-handle"></div>';
-
-  // Render sections
   const orderedSources = [...srcOrder.filter(s => sources[s]), ...Object.keys(sources).filter(s => !srcOrder.includes(s))];
-
   for(const src of orderedSources){
     const models = sources[src] || [];
     if(!models.length) continue;
-
     const sectionId = 'mdsec_' + src.replace(/\s/g,'_');
-    const isOR = src === 'OpenRouter Free';
-    // Start OR collapsed to save space (expandable)
-    const startCollapsed = false; // all open by default
-
-    // Source header (clickable to collapse)
     const hdr = document.createElement('div');
     hdr.className = 'md-source-row';
     hdr.innerHTML = `<div class="md-source"><span>${srcLabel[src]||src}</span><span class="md-src-count">${models.length}</span></div><span class="md-src-toggle" id="tog_${sectionId}">▾</span>`;
     dropdown.appendChild(hdr);
-
-    // Section body
     const section = document.createElement('div');
-    section.className = 'md-section';
-    section.id = sectionId;
-    section.style.maxHeight = '2000px';
-
+    section.className = 'md-section'; section.id = sectionId; section.style.maxHeight = '2000px';
     for(const m of models){
       const isSelected = m.provider === currentProvider;
       const bm = m.benchmark;
       const bmStr = bm ? `<span class="mi-bm">${Math.round(bm.total_score*100)}%</span><span class="mi-ctx">·${bm.latency_ms}ms</span>` : '';
-      // Context length from desc
       const ctxMatch = m.desc.match(/(\d+[kKmM]) ctx/);
       const ctxStr = ctxMatch ? `<span class="mi-ctx">${ctxMatch[1]}</span>` : '';
       const freeBadge = m.source === 'OpenRouter Free' ? '<span class="mi-free">FREE</span>' : '';
-
       const row = document.createElement('div');
       row.className = 'md-item' + (isSelected ? ' selected' : '');
       row.innerHTML = `<span class="mi-icon">${m.icon}</span>
@@ -681,8 +625,6 @@ function renderModelPicker(pingData){
       section.appendChild(row);
     }
     dropdown.appendChild(section);
-
-    // Wire collapse
     hdr.onclick = () => {
       const sec = $(sectionId);
       const tog = $('tog_'+sectionId);
@@ -690,8 +632,6 @@ function renderModelPicker(pingData){
       if(tog) tog.textContent = collapsed ? '▸' : '▾';
     };
   }
-
-  // Benchmark footer
   const footer = document.createElement('div');
   footer.className = 'md-footer';
   footer.innerHTML = '<button class="tm-btn" id="runBenchmarkBtn" style="width:100%;font-size:12px">⚡ Benchmark all models — find the fastest</button>';
@@ -726,8 +666,7 @@ async function selectModel(model, pingData){
     else alert(`${model.name} not ready yet.`);
     return;
   }
-  state.activeProvider = model.provider;
-  persist();
+  state.activeProvider = model.provider; persist();
   try{
     await api('/set-key', { method:'POST', body:{ provider: model.provider } });
     if($('modelPillName')) $('modelPillName').textContent = model.name;
@@ -738,16 +677,9 @@ async function selectModel(model, pingData){
   }catch(e){ alert('Failed to switch: ' + e.message); }
 }
 
+function openModelPicker(){ renderModelPicker(lastPingData); $('modelDropdown').classList.add('open'); $('modelScrim').classList.add('on'); }
+function closeModelPicker(){ $('modelDropdown').classList.remove('open'); $('modelScrim').classList.remove('on'); }
 
-function openModelPicker(){
-  renderModelPicker(lastPingData);
-  $('modelDropdown').classList.add('open');
-  $('modelScrim').classList.add('on');
-}
-function closeModelPicker(){
-  $('modelDropdown').classList.remove('open');
-  $('modelScrim').classList.remove('on');
-}
 async function updateBuiltinStatus(pingData){
   const el = $('builtinStatus');
   if(!el) return;
@@ -757,12 +689,12 @@ async function updateBuiltinStatus(pingData){
     el.innerHTML = '<span style="color:var(--dim)">Built-in AI not configured on server.</span>';
   }
 }
-// ---- setup panel ----
+
+// ── setup panel ─────────────────────────────────────────────────────────────
 async function saveKaiKey(){
   const k = $('kaiKeyInput').value.trim();
   if(!k.startsWith('kai_')){ alert('Should start with kai_'); return; }
-  state.kaiKey = k;
-  persist();
+  state.kaiKey = k; persist();
   $('enrollStat').innerHTML = `<span style="color:var(--good)">saving…</span>`;
   await checkServer();
 }
@@ -787,10 +719,9 @@ async function saveProviderKey(){
   if(!state.kaiKey){ alert('Set your KAI API key first'); return; }
   try{
     const body = { provider: prov };
-    if(prov === 'groq') body.groq_key = key;
-    else if(prov === 'hf') body.hf_key = key;
+    if(prov === 'groq')    body.groq_key   = key;
+    else if(prov === 'hf') body.hf_key     = key;
     else if(prov === 'openai') body.openai_key = key;
-    // Pass provider key under the matching column name
     await api('/set-key', { method:'POST', body });
     alert(prov+' key saved ✓');
     $('apiKey').value = '';
@@ -800,42 +731,37 @@ async function saveProviderKey(){
 async function testProvider(){
   if(!state.kaiKey){ alert('Set KAI key first'); return; }
   const prov = $('provSel').value;
-  const key = $('apiKey').value.trim();
+  const key  = $('apiKey').value.trim();
   try{
     const r = await api('/test-provider', { method:'POST', body:{ provider: prov, key: key || undefined } });
     if(r.ok) alert(`✓ ${r.provider} works\nmodel: ${r.model}\nreply: ${r.reply||'(empty)'}`);
-    else alert(`✗ ${r.provider} failed:\n${r.error}`);
+    else      alert(`✗ ${r.provider} failed:\n${r.error}`);
   }catch(e){ alert('test failed: '+e.message); }
 }
-// Update provider hint based on selection
 function updateProvHint(){
   const sel = $('provSel');
   if(!sel) return;
   const hints = {
     kai_builtin: '★ KAI Built-in — uses Qwen 2.5 7B Instruct (Apache 2.0). Activate once with your HF token above, then no key needed ever.',
-    groq: 'Get free Groq key (recommended): console.groq.com/keys — 14,400 req/day free.',
-    hf: 'Get free HF token: huggingface.co/settings/tokens — needs Read access.',
-    cerebras: 'Get free Cerebras key: cloud.cerebras.ai — generous free tier.',
-    mistral: 'Get free Mistral key: console.mistral.ai — free tier on small models.',
+    groq:        'Get free Groq key (recommended): console.groq.com/keys — 14,400 req/day free.',
+    hf:          'Get free HF token: huggingface.co/settings/tokens — needs Read access.',
+    cerebras:    'Get free Cerebras key: cloud.cerebras.ai — generous free tier.',
+    mistral:     'Get free Mistral key: console.mistral.ai — free tier on small models.',
   };
   $('provHint').textContent = hints[sel.value] || '';
 }
 
-// ---- KAI Computer panel ----
-let projectsCache = [];
-let activeProjId = null;
+// ── KAI Computer ─────────────────────────────────────────────────────────────
+let projectsCache = [], activeProjId = null;
 async function loadProjects(){
   try{
     const d = await api('/projects');
     projectsCache = d.projects || [];
     $('projList').innerHTML = projectsCache.length
-      ? projectsCache.map(p=>{
-          const dotClass = p.status;
-          return `<div class="chatitem ${p.id===activeProjId?'active':''}" data-id="${p.id}" style="font-size:13px">
-            <span class="proj-dot ${dotClass}"></span>${esc(p.title)}<br>
-            <span style="color:var(--dim);font-size:10px">${p.current_step}/${p.plan?.length||0} · ${p.status}</span>
-          </div>`;
-        }).join('')
+      ? projectsCache.map(p=>`<div class="chatitem ${p.id===activeProjId?'active':''}" data-id="${p.id}" style="font-size:13px">
+          <span class="proj-dot ${p.status}"></span>${esc(p.title)}<br>
+          <span style="color:var(--dim);font-size:10px">${p.current_step}/${p.plan?.length||0} · ${p.status}</span>
+        </div>`).join('')
       : '<div class="empty">No projects.<br>Ask KAI for multi-step work.</div>';
     document.querySelectorAll('#projList .chatitem').forEach(el=>{
       el.onclick = ()=>{ activeProjId = el.dataset.id; renderProj(); loadProjects(); };
@@ -846,7 +772,7 @@ function renderProj(){
   const p = projectsCache.find(x=>x.id===activeProjId);
   if(!p){ $('projDetail').innerHTML = '<div class="empty">Select a project.</div>'; return; }
   const planHtml = (p.plan||[]).map((s,i)=>{
-    const mark = s.status==='done'?'✓':s.status==='error'?'✕':i===p.current_step?'→':'·';
+    const mark  = s.status==='done'?'✓':s.status==='error'?'✕':i===p.current_step?'→':'·';
     const color = s.status==='done'?'var(--good)':s.status==='error'?'var(--bad)':i===p.current_step?'var(--gold)':'var(--dim)';
     return `<div style="padding:4px 0;color:${color};font-size:13px"><b>${mark}</b> ${esc(s.step)}${s.result?`<div style="font-size:11px;color:var(--dim);margin-left:18px">→ ${esc(String(s.result).slice(0,200))}</div>`:''}</div>`;
   }).join('') || '<i style="color:var(--dim);font-size:12px">No plan yet.</i>';
@@ -876,10 +802,10 @@ function renderProj(){
     <div style="background:#000;padding:6px 8px;border-radius:6px;max-height:140px;overflow-y:auto">${log}</div>
   `;
 }
-window._stopProj = async (id)=>{ try{ await api('/project/'+id+'/stop',{method:'POST'}); loadProjects(); renderProj(); }catch(e){ alert(e.message); } };
-window._delProj = async (id)=>{ if(!confirm('Delete project?')) return; try{ await api('/project/'+id,{method:'DELETE'}); activeProjId=null; loadProjects(); renderProj(); }catch(e){ alert(e.message); } };
+window._stopProj = async(id)=>{ try{ await api('/project/'+id+'/stop',{method:'POST'}); loadProjects(); renderProj(); }catch(e){ alert(e.message); } };
+window._delProj  = async(id)=>{ if(!confirm('Delete project?')) return; try{ await api('/project/'+id,{method:'DELETE'}); activeProjId=null; loadProjects(); renderProj(); }catch(e){ alert(e.message); } };
 
-// ---- notes panel ----
+// ── notes ─────────────────────────────────────────────────────────────────
 async function loadNotes(){
   try{
     const d = await api('/notes');
@@ -896,39 +822,32 @@ async function addNote(){
   catch(e){ alert(e.message); }
 }
 
-
-
-// ===== IMAGES: pick, upload, attach to next message =====
-let pendingImages = [];  // [{url, name, localPreview}]
-
+// ── image attach ───────────────────────────────────────────────────────────
+let pendingImages = [];
 function renderAttachPreview(){
   const wrap = $('attachPreview');
   if(!pendingImages.length){ wrap.classList.remove('on'); wrap.innerHTML=''; return; }
   wrap.classList.add('on');
-  wrap.innerHTML = pendingImages.map((p, i)=>`
+  wrap.innerHTML = pendingImages.map((p,i)=>`
     <div class="thumb ${p.uploading?'uploading':''}">
       <img src="${p.localPreview}">
       <button class="rm" onclick="window._removeImg(${i})">×</button>
-    </div>
-  `).join('');
+    </div>`).join('');
 }
-window._removeImg = (idx)=>{ pendingImages.splice(idx, 1); renderAttachPreview(); };
+window._removeImg = (idx)=>{ pendingImages.splice(idx,1); renderAttachPreview(); };
 
 async function pickImages(files){
   if(!state.kaiKey){ alert('Set your KAI API key first'); return; }
   if(!files || !files.length) return;
-  // Cap at 5 images per turn (Llama 4 Scout's limit)
   const room = 5 - pendingImages.length;
   if(room <= 0){ alert('Max 5 images at a time'); return; }
   const list = Array.from(files).slice(0, room);
   for(const file of list){
     if(!file.type.startsWith('image/')){ continue; }
-    if(file.size > 10 * 1024 * 1024){ alert(`${file.name} too large (>10MB)`); continue; }
+    if(file.size > 10*1024*1024){ alert(`${file.name} too large (>10MB)`); continue; }
     const localPreview = URL.createObjectURL(file);
     const entry = { url: null, name: file.name, localPreview, uploading: true };
-    pendingImages.push(entry);
-    renderAttachPreview();
-    // Upload
+    pendingImages.push(entry); renderAttachPreview();
     try{
       const headers = {
         'Authorization': 'Bearer ' + ANON_KEY,
@@ -936,73 +855,154 @@ async function pickImages(files){
         'Content-Type': file.type,
         'x-image-name': file.name.replace(/[^a-zA-Z0-9._-]/g,'_'),
       };
-      const res = await fetch(state.server + '/upload-image', { method:'POST', headers, body: file });
+      const res  = await fetch(state.server + '/upload-image', { method:'POST', headers, body: file });
       const data = await res.json();
       if(!res.ok || !data.url) throw new Error(data.error || 'upload failed');
-      entry.url = data.url;
-      entry.uploading = false;
-      renderAttachPreview();
+      entry.url = data.url; entry.uploading = false; renderAttachPreview();
     }catch(e){
       const idx = pendingImages.indexOf(entry);
       if(idx >= 0) pendingImages.splice(idx, 1);
-      renderAttachPreview();
-      alert('upload failed: ' + e.message);
+      renderAttachPreview(); alert('upload failed: ' + e.message);
     }
   }
 }
 
-// ===== VOICE: record audio, send to /chat/voice, play reply =====
-let mediaRecorder = null;
-let audioChunks = [];
-let recordingStream = null;
-let isRecording = false;
+// ═══════════════════════════════════════════════════════════════════════════
+// ██  JARVIS VOICE SYSTEM  ─  always-on · wakeword · proactive speaking  ██
+// ═══════════════════════════════════════════════════════════════════════════
+let mediaRecorder    = null;
+let audioChunks      = [];
+let recordingStream  = null;
+let isRecording      = false;
 
+// ── TTS: speak any text in Jarvis style ───────────────────────────────────
+let currentAudio = null;   // currently playing Audio object
+function jarvisSpeak(text){
+  if(!state.jarvisEnabled) return;
+  // Strip markdown / emoji noise before speaking
+  const clean = text
+    .replace(/```[\s\S]*?```/g,'')
+    .replace(/`[^`]*`/g,'')
+    .replace(/\*+/g,'')
+    .replace(/_+/g,'')
+    .replace(/#{1,6}\s/g,'')
+    .replace(/https?:\/\/\S+/g, 'link')
+    .replace(/[🎨🎬🤖🔧📄📝🌐⚙️📊📎⭐✦🆓🔥👁🛡🐙🏠⚡]/gu,'')
+    .replace(/\s+/g,' ').trim();
+  if(!clean) return;
+
+  // Stop any currently playing audio
+  if(currentAudio){ try{ currentAudio.pause(); currentAudio = null; }catch{} }
+  speechSynthesis.cancel();
+
+  _ttsSpeak(clean);
+}
+
+function _ttsSpeak(text){
+  if(!('speechSynthesis' in window)) return;
+  // Chunk long text into sentences so it feels more natural
+  const sentences = text.match(/[^.!?]+[.!?]*/g) || [text];
+  let idx = 0;
+  function speakNext(){
+    if(idx >= sentences.length){ jarvisEndSpeak(); return; }
+    const u = new SpeechSynthesisUtterance(sentences[idx++].trim());
+    _applyJarvisVoice(u);
+    u.onend   = speakNext;
+    u.onerror = ()=>{ jarvisEndSpeak(); };
+    speechSynthesis.speak(u);
+  }
+  speakNext();
+}
+
+function _applyJarvisVoice(u){
+  const voices = speechSynthesis.getVoices();
+  // Priority order for deep/authoritative male voice
+  const preferred =
+    voices.find(v=>/google uk english male/i.test(v.name))  ||
+    voices.find(v=>/microsoft david/i.test(v.name))         ||
+    voices.find(v=>/alex/i.test(v.name))                    ||
+    voices.find(v=>/daniel/i.test(v.name))                  ||
+    voices.find(v=>/en.*male/i.test(v.name))                ||
+    voices.find(v=>v.lang==='en-GB')                        ||
+    voices.find(v=>v.lang.startsWith('en'));
+  if(preferred) u.voice = preferred;
+  u.rate   = 0.92;    // slightly slower, deliberate
+  u.pitch  = 0.8;     // lower pitch = more authoritative
+  u.volume = state.jarvisVolume || 1.0;
+}
+
+function jarvisEndSpeak(){
+  // Update the voice overlay if visible
+  const ov = $('voiceOverlay');
+  if(ov && ov.classList.contains('on') && !isRecording){
+    ov.classList.remove('on');
+  }
+  const vstatus = $('voStatus');
+  if(vstatus && vstatus.textContent === 'speaking…') vstatus.textContent = 'tap to speak';
+}
+
+// ── Proactive: KAI greets on launch ──────────────────────────────────────
+let hasGreeted = false;
+function jarvisGreet(){
+  if(!state.jarvisEnabled || hasGreeted) return;
+  hasGreeted = true;
+  const hour = new Date().getHours();
+  const tod  = hour<12 ? 'Good morning' : hour<18 ? 'Good afternoon' : 'Good evening';
+  const greetings = [
+    `${tod}. KAI systems online. How can I assist you?`,
+    `${tod}. All systems ready. What would you like to work on?`,
+    `${tod}. I'm here. What do you need?`,
+  ];
+  const msg = greetings[Math.floor(Math.random() * greetings.length)];
+  // Short delay so voices load
+  setTimeout(()=> jarvisSpeak(msg), 1200);
+}
+
+// ── Record & send voice ───────────────────────────────────────────────────
 async function startRecording(){
   if(isRecording) return;
   if(!state.kaiKey){ alert('Set your KAI API key first'); return; }
+  // Stop any current playback so we don't record our own output
+  speechSynthesis.cancel();
+  if(currentAudio){ try{ currentAudio.pause(); currentAudio = null; }catch{} }
   try{
     recordingStream = await navigator.mediaDevices.getUserMedia({ audio: true });
   }catch(e){
-    alert('Mic permission denied or unavailable: ' + e.message);
+    alert('Mic permission denied: ' + e.message);
     return;
   }
   audioChunks = [];
-  // Prefer webm/opus (smaller, faster); fall back to whatever the browser supports
-  const mimeOptions = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg'];
+  const mimeOptions = ['audio/webm;codecs=opus','audio/webm','audio/mp4','audio/ogg'];
   let mimeType = '';
-  for(const t of mimeOptions){
-    if(MediaRecorder.isTypeSupported(t)){ mimeType = t; break; }
-  }
+  for(const t of mimeOptions){ if(MediaRecorder.isTypeSupported(t)){ mimeType = t; break; } }
   mediaRecorder = new MediaRecorder(recordingStream, mimeType ? { mimeType } : {});
   mediaRecorder.ondataavailable = e => { if(e.data.size > 0) audioChunks.push(e.data); };
   mediaRecorder.start();
   isRecording = true;
   $('micBtn').classList.add('recording');
-  $('voiceOverlay').classList.add('on');
+  const ov = $('voiceOverlay');
+  ov.classList.add('on');
   $('voStatus').textContent = 'listening…';
 }
 
-async function stopRecording(send){
+async function stopRecording(shouldSend){
   if(!isRecording || !mediaRecorder) return;
-  return new Promise((resolve)=>{
+  return new Promise(resolve=>{
     mediaRecorder.onstop = async ()=>{
-      // Stop all tracks to release the mic
       if(recordingStream){ recordingStream.getTracks().forEach(t=>t.stop()); recordingStream = null; }
       $('micBtn').classList.remove('recording');
       isRecording = false;
-      if(!send || audioChunks.length === 0){
+      if(!shouldSend || audioChunks.length === 0){
         $('voiceOverlay').classList.remove('on');
-        resolve();
-        return;
+        resolve(); return;
       }
       const blob = new Blob(audioChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
       audioChunks = [];
       $('voStatus').textContent = 'transcribing…';
-      try{
-        await sendVoice(blob);
-      }catch(e){
+      try{ await sendVoice(blob); }
+      catch(e){
         $('voStatus').textContent = 'error: ' + e.message;
-        setTimeout(()=>$('voiceOverlay').classList.remove('on'), 2000);
+        setTimeout(()=>{ $('voiceOverlay').classList.remove('on'); }, 2000);
       }
       resolve();
     };
@@ -1011,84 +1011,46 @@ async function stopRecording(send){
 }
 
 async function sendVoice(audioBlob){
-  // Post raw audio to /chat/voice
   const headers = {
     'Authorization': 'Bearer ' + ANON_KEY,
     'x-kai-key': state.kaiKey,
     'Content-Type': audioBlob.type || 'audio/webm',
   };
   if(currentChatId) headers['x-chat-id'] = currentChatId;
-
-  const res = await fetch(state.server + '/chat/voice', {
-    method: 'POST',
-    headers,
-    body: audioBlob,
-  });
+  const res  = await fetch(state.server + '/chat/voice', { method:'POST', headers, body: audioBlob });
   const data = await res.json();
   if(!res.ok || data.error) throw new Error(data.error || ('HTTP ' + res.status));
-
   currentChatId = data.chat_id;
   $('voStatus').textContent = 'speaking…';
-
-  // Refresh the chat view so user sees what they said + KAI's reply
   await loadCurrentChat();
   await loadChatList();
 
-  // Play the reply
+  // Play server TTS if returned, else use our own Jarvis voice
   if(data.audio_url){
-    // OpenAI TTS — play the mp3
-    const audio = new Audio(data.audio_url);
-    audio.onended = ()=>$('voiceOverlay').classList.remove('on');
-    audio.onerror = ()=>{ $('voiceOverlay').classList.remove('on'); fallbackTTS(data.reply); };
-    try{ await audio.play(); }
-    catch(e){ $('voiceOverlay').classList.remove('on'); fallbackTTS(data.reply); }
+    currentAudio = new Audio(data.audio_url);
+    currentAudio.volume = state.jarvisVolume || 1.0;
+    currentAudio.onended = ()=>jarvisEndSpeak();
+    currentAudio.onerror = ()=>{ currentAudio=null; if(data.reply) jarvisSpeak(data.reply); else jarvisEndSpeak(); };
+    try{ await currentAudio.play(); }
+    catch(e){ currentAudio=null; if(data.reply) jarvisSpeak(data.reply); else jarvisEndSpeak(); }
   } else if(data.reply){
-    // Fall back to browser speechSynthesis
-    fallbackTTS(data.reply);
+    jarvisSpeak(data.reply);
   } else {
-    $('voiceOverlay').classList.remove('on');
+    jarvisEndSpeak();
   }
-}
-
-function fallbackTTS(text){
-  if(!('speechSynthesis' in window)){
-    $('voiceOverlay').classList.remove('on');
-    return;
-  }
-  const u = new SpeechSynthesisUtterance(text);
-  // Pick a decent voice — prefer something male if available
-  const voices = speechSynthesis.getVoices();
-  const preferred = voices.find(v=>/male|onyx|deep/i.test(v.name)) || voices.find(v=>v.lang.startsWith('en'));
-  if(preferred) u.voice = preferred;
-  u.rate = 1.0;
-  u.pitch = 0.95;
-  u.onend = ()=>$('voiceOverlay').classList.remove('on');
-  u.onerror = ()=>$('voiceOverlay').classList.remove('on');
-  speechSynthesis.speak(u);
 }
 
 function wireMic(){
   const btn = $('micBtn');
   if(!btn) return;
-  // Touch (mobile): hold to record, release to send
   let touchActive = false;
-  btn.addEventListener('touchstart', e => {
-    e.preventDefault();
-    touchActive = true;
-    startRecording();
-  });
-  btn.addEventListener('touchend', e => {
-    e.preventDefault();
-    if(touchActive){ touchActive = false; stopRecording(true); }
-  });
-  btn.addEventListener('touchcancel', e => {
-    if(touchActive){ touchActive = false; stopRecording(false); }
-  });
-  // Click (desktop testing): toggle
-  btn.addEventListener('click', e => {
-    if(touchActive) return;  // touch handled it
+  btn.addEventListener('touchstart', e=>{ e.preventDefault(); touchActive=true; startRecording(); });
+  btn.addEventListener('touchend',   e=>{ e.preventDefault(); if(touchActive){ touchActive=false; stopRecording(true); } });
+  btn.addEventListener('touchcancel',()=>{ if(touchActive){ touchActive=false; stopRecording(false); } });
+  btn.addEventListener('click', e=>{
+    if(touchActive) return;
     if(isRecording) stopRecording(true);
-    else startRecording();
+    else            startRecording();
   });
   // Tap overlay to cancel
   $('voiceOverlay').addEventListener('click', ()=>{
@@ -1097,8 +1059,24 @@ function wireMic(){
   });
 }
 
+// ── Jarvis toggle in setup panel ──────────────────────────────────────────
+function renderJarvisToggle(){
+  const el = $('jarvisToggle');
+  if(!el) return;
+  el.textContent = state.jarvisEnabled ? '🔊 Jarvis Voice ON' : '🔇 Jarvis Voice OFF';
+  el.classList.toggle('on', state.jarvisEnabled);
+}
+function toggleJarvis(){
+  state.jarvisEnabled = !state.jarvisEnabled;
+  persist();
+  renderJarvisToggle();
+  if(state.jarvisEnabled) jarvisSpeak('Jarvis voice enabled.');
+  else speechSynthesis.cancel();
+}
+
+// ── OpenAI key save ───────────────────────────────────────────────────────
 async function saveOpenAIKey(){
-  const key = $('openaiKey').value.trim();
+  const key = $('openaiKey')?.value.trim();
   if(!key){ alert('paste a key first'); return; }
   if(!state.kaiKey){ alert('Set your KAI API key first'); return; }
   try{
@@ -1109,73 +1087,73 @@ async function saveOpenAIKey(){
   }catch(e){ alert('failed: ' + e.message); }
 }
 
-// ---- boot ----
+// ── boot ─────────────────────────────────────────────────────────────────
 function init(){
-  // wire buttons
+  // BUG FIX: topbar + button gets a unique ID `newChatTopBtn` (HTML updated too)
+  if($('newChatTopBtn')) $('newChatTopBtn').onclick = newChat;
+  // Left panel "New Chat" button
+  if($('newChatBtn'))    $('newChatBtn').onclick    = newChat;
+
   $('openMenu').onclick = ()=>{ openP('scrimL','panelL'); loadChatList(); };
   $('openComputer').onclick = ()=>{ openP('scrimC','panelC'); loadProjects(); renderProj(); };
   $('goSetup').onclick = ()=>{
     openP('scrimS','panelS');
-    $('srvUrl').value = state.server;
+    $('srvUrl').value      = state.server;
     $('kaiKeyInput').value = state.kaiKey || '';
+    renderJarvisToggle();
     updateProvHint();
     testKey();
   };
   $('goNotes').onclick   = ()=>{ openP('scrimN','panelN'); loadNotes(); };
   $('goLessons').onclick = ()=>{ openP('scrimK','panelK'); loadLessons(); };
   if($('runSelfEval')) $('runSelfEval').onclick = runSelfEvalNow;
+  if($('goImageGen'))  $('goImageGen').onclick  = ()=>{ closeAll(); promptImageGen(); };
+  if($('goReelGen'))   $('goReelGen').onclick   = ()=>{ closeAll(); promptReelGen(); };
+  if($('agentBtn'))    $('agentBtn').onclick     = toggleAgentMode;
+  if($('modelPill'))   $('modelPill').onclick    = openModelPicker;
+  if($('modelScrim'))  $('modelScrim').onclick   = closeModelPicker;
+  if($('jarvisToggle')) $('jarvisToggle').onclick = toggleJarvis;
+
   ['scrimL','scrimS','scrimC','scrimN','scrimK'].forEach(id=>{ if($(id)) $(id).onclick = closeAll; });
-  // Default to KAI built-in provider on first launch
+
   if(!state.activeProvider) state.activeProvider = 'kai_builtin';
 
-  // Single wire for all new buttons (removes the duplicate above)
-  if($('newChatBtn')) $('newChatBtn').onclick = newChat;
-  if($('goImageGen')) $('goImageGen').onclick = ()=>{ closeAll(); promptImageGen(); };
-  if($('goReelGen'))  $('goReelGen').onclick  = ()=>{ closeAll(); promptReelGen(); };
-  if($('agentBtn'))   $('agentBtn').onclick   = toggleAgentMode;
-  if($('modelPill'))  $('modelPill').onclick  = openModelPicker;
-  if($('modelScrim')) $('modelScrim').onclick = closeModelPicker;
-
   $('saveKaiKey').onclick = saveKaiKey;
-  $('testKey').onclick = testKey;
-  $('saveKey').onclick = saveProviderKey;
-  $('testProv').onclick = testProvider;
+  $('testKey').onclick    = testKey;
+  $('saveKey').onclick    = saveProviderKey;
+  $('testProv').onclick   = testProvider;
   $('provSel').addEventListener('change', updateProvHint);
   $('forgetDev').onclick = ()=>{
     if(!confirm('Forget this device? You can paste your key again to reconnect.')) return;
     delete state.kaiKey; persist(); checkServer();
     alert('forgotten — paste key again to reconnect');
   };
-  $('addNote').onclick = addNote;
-  $('cClose').onclick = closeAll;
-  $('cRefresh').onclick = ()=>{ loadProjects(); renderProj(); };
+  $('addNote').onclick    = addNote;
+  $('cClose').onclick     = closeAll;
+  $('cRefresh').onclick   = ()=>{ loadProjects(); renderProj(); };
   if($('saveOpenAIKey')) $('saveOpenAIKey').onclick = saveOpenAIKey;
+
   wireMic();
-  $('imgBtn').onclick = ()=>$('imgPicker').click();
-  $('imgPicker').onchange = (e)=>{ pickImages(e.target.files); e.target.value=''; };
+  $('imgBtn').onclick      = ()=>$('imgPicker').click();
+  $('imgPicker').onchange  = e=>{ pickImages(e.target.files); e.target.value=''; };
+  $('sendBtn').onclick     = send;
+  $('input').addEventListener('keydown', e=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(); } });
+  $('input').addEventListener('input',   e=>{ e.target.style.height='auto'; e.target.style.height=Math.min(120,e.target.scrollHeight)+'px'; });
 
-  // close panels by scrim
-  ['scrimL','scrimS','scrimC','scrimN'].forEach(id=>$(id).onclick = closeAll);
+  // Voices may load async — re-apply after voiceschanged
+  if('speechSynthesis' in window) speechSynthesis.onvoiceschanged = ()=>{ /* voices ready */ };
 
-  // composer
-  $('sendBtn').onclick = send;
-  $('input').addEventListener('keydown', e=>{
-    if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(); }
-  });
-  $('input').addEventListener('input', e=>{
-    e.target.style.height='auto';
-    e.target.style.height = Math.min(120, e.target.scrollHeight)+'px';
-  });
-
-  // first paint
   loadCurrentChat();
   checkServer();
-  checkForAppUpdate();   // check GitHub for newer APK — shows gold banner if update exists
-  setTimeout(loadServerModels, 3000); // pre-load model+benchmark status after 3s
+  checkForAppUpdate();
+  setTimeout(loadServerModels, 3000);
 
-  // poll projects in background every 10s when computer panel open
+  // Jarvis greeting after a short moment (lets voices load)
+  setTimeout(jarvisGreet, 1500);
+
+  // Poll KAI Computer every 10s when panel open
   setInterval(()=>{
-    if($('panelC').classList.contains('on')){ loadProjects(); if(activeProjId) renderProj(); }
+    if($('panelC')?.classList.contains('on')){ loadProjects(); if(activeProjId) renderProj(); }
   }, 10000);
 }
 
