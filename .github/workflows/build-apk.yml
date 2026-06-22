@@ -19,12 +19,20 @@ jobs:
           version: latest
 
       - name: Deploy kai-brain edge function
+        continue-on-error: true
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
+            echo "⚠ SUPABASE_ACCESS_TOKEN not set — skipping edge function deploy"
+            echo "To enable: go to supabase.com/dashboard/account/tokens, create a token,"
+            echo "then add it as SUPABASE_ACCESS_TOKEN in GitHub repo Settings > Secrets"
+            exit 0
+          fi
           supabase functions deploy kai-brain \
             --project-ref hpjvnohzhpkopisfaemz \
             --no-verify-jwt
+          echo "✓ Edge function deployed to Supabase"
 
       # ── Build Android APK ──────────────────────────────────────────────
       - name: Setup Node.js
@@ -45,7 +53,8 @@ jobs:
         run: npm install -g cordova@12
 
       - name: Install dependencies
-        run: npm install
+        run: |
+          if [ -f package.json ]; then npm install; fi
 
       - name: Add Android platform
         run: cordova platform add android --save
@@ -55,23 +64,23 @@ jobs:
 
       - name: Sign APK
         run: |
-          cd platforms/android/app/build/outputs/apk/release
+          APK_DIR="platforms/android/app/build/outputs/apk/release"
+          cd "$APK_DIR"
+          KS="$GITHUB_WORKSPACE/keystore/debug.keystore"
+          BT=$(ls $ANDROID_HOME/build-tools/ | sort -V | tail -1)
           jarsigner -verbose \
-            -sigalg SHA256withRSA \
-            -digestalg SHA-256 \
-            -keystore $GITHUB_WORKSPACE/keystore/debug.keystore \
-            -storepass android \
-            -keypass android \
-            app-release-unsigned.apk \
-            androiddebugkey
-          $ANDROID_HOME/build-tools/$(ls $ANDROID_HOME/build-tools/ | sort -V | tail -1)/zipalign \
-            -v 4 app-release-unsigned.apk kai.apk
+            -sigalg SHA256withRSA -digestalg SHA-256 \
+            -keystore "$KS" -storepass android -keypass android \
+            app-release-unsigned.apk androiddebugkey
+          "$ANDROID_HOME/build-tools/$BT/zipalign" -v 4 \
+            app-release-unsigned.apk kai.apk
+          echo "✓ APK signed: $APK_DIR/kai.apk"
 
-      - name: Get build tag from commit
+      - name: Get build tag
         id: tag
         run: |
           MSG="${{ github.event.head_commit.message }}"
-          TAG=$(echo "$MSG" | grep -oP 'Build [A-Z]+' | head -1 | awk '{print $2}')
+          TAG=$(echo "$MSG" | grep -oP '(?<=Build )[A-Z]+' | head -1)
           if [ -z "$TAG" ]; then TAG="BUILD-$(date +%Y%m%d%H%M)"; fi
           echo "tag=$TAG" >> $GITHUB_OUTPUT
           echo "Release tag: $TAG"
