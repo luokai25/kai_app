@@ -3,328 +3,333 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#0f0e0c">
+<meta name="theme-color" content="#0a0906">
 <title>KAI</title>
 <style>
-  :root{
-    --bg:#0f0e0c; --panel:#181613; --panel2:#211e19; --line:#2e2a23;
-    --ink:#f3ead6; --gold:#ffd96b; --dim:#9a9078; --good:#8ce99a; --bad:#ff8787;
-    --font:'Cormorant Garamond',Georgia,serif;
-  }
-  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font-family:Segoe UI,system-ui,-apple-system,sans-serif;font-size:15px;overflow:hidden}
-  .app{height:100dvh;display:flex;flex-direction:column}
-  .topbar{flex:0 0 auto;height:54px;display:flex;align-items:center;gap:10px;padding:0 12px;border-bottom:1px solid var(--line);background:var(--panel);position:relative;z-index:30}
-  .iconbtn{width:38px;height:38px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--gold);font-size:18px;display:grid;place-items:center;cursor:pointer}
-  .title{flex:1;font-family:var(--font);font-size:22px;color:var(--gold);letter-spacing:2px}
-  .status-dot{width:8px;height:8px;border-radius:50%;background:var(--dim)}
-  .status-dot.on{background:var(--good)}
-  .status-dot.err{background:var(--bad)}
-  .msgs{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;background:var(--bg);scroll-behavior:smooth}
-  .msg{max-width:84%;padding:10px 14px;border-radius:14px;line-height:1.45;white-space:pre-wrap;word-wrap:break-word;font-size:14px}
-  .msg.me{background:var(--gold);color:#0a0a0a;align-self:flex-end;border-bottom-right-radius:5px}
-  .msg.kai{background:var(--panel2);border:1px solid var(--line);border-bottom-left-radius:5px;margin-right:auto}
-  .msg .used{margin-top:6px;padding-top:6px;border-top:1px solid var(--line);font-size:10px;color:var(--dim);font-family:monospace}
-  .msg a.artifact{display:inline-block;background:var(--gold);color:#0a0a0a;padding:6px 12px;border-radius:8px;text-decoration:none;font-weight:600;margin:4px 4px 4px 0;font-size:13px}
-  .msg a.artifact:active{opacity:.7}
-  .msg.kai a{word-break:break-all}
-  /* BUG FIX: modepill is now a real element in the DOM */
-  .modepill{font-size:10px;letter-spacing:1px;color:var(--dim);text-align:center;padding:3px;background:var(--panel)}
-  .composer{flex:0 0 auto;padding:10px 12px calc(10px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--panel);display:flex;gap:8px;align-items:flex-end}
-  .composer textarea{flex:1;resize:none;max-height:120px;min-height:44px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;color:var(--ink);padding:11px;font-size:15px;outline:none;font-family:inherit}
-  .send{width:44px;height:44px;border-radius:10px;border:none;background:var(--gold);color:#0a0a0a;font-size:18px;cursor:pointer}
-  .send:disabled{opacity:0.5}
-  .img{width:44px;height:44px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--gold);font-size:18px;cursor:pointer;flex-shrink:0}
-  .attach-preview{display:none;padding:6px 12px;gap:6px;background:var(--panel);border-top:1px solid var(--line);overflow-x:auto;white-space:nowrap}
-  .attach-preview.on{display:flex}
-  .attach-preview .thumb{position:relative;flex-shrink:0;width:60px;height:60px;border-radius:8px;overflow:hidden;border:1px solid var(--line)}
-  .attach-preview .thumb img{width:100%;height:100%;object-fit:cover}
-  .attach-preview .thumb .rm{position:absolute;top:2px;right:2px;background:rgba(0,0,0,.7);color:#fff;width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-size:12px;cursor:pointer;border:none}
-  .attach-preview .thumb.uploading::after{content:"";position:absolute;inset:0;background:rgba(0,0,0,.5);background-image:linear-gradient(45deg,transparent 30%,rgba(255,217,107,.4) 50%,transparent 70%);background-size:200% 100%;animation:shimmer 1s linear infinite}
-  @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
-  .msg .imgs{display:flex;gap:4px;margin-bottom:6px;flex-wrap:wrap}
-  .msg .imgs img{max-width:200px;max-height:200px;border-radius:8px;object-fit:cover}
-  /* ── Jarvis mic button ── */
-  .mic{width:44px;height:44px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--gold);font-size:18px;cursor:pointer;-webkit-user-select:none;user-select:none}
-  .mic.recording{background:#ff4444;color:#fff;border-color:#ff4444;animation:pulse 1s ease-in-out infinite}
-  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(255,68,68,.6)}50%{box-shadow:0 0 0 12px rgba(255,68,68,0)}}
-  /* ── Jarvis voice overlay ── */
-  .voice-overlay{position:fixed;inset:0;background:rgba(0,0,0,.88);display:none;align-items:center;justify-content:center;z-index:100;backdrop-filter:blur(10px)}
-  .voice-overlay.on{display:flex}
-  .vo-inner{text-align:center;display:flex;flex-direction:column;align-items:center;gap:16px}
-  /* Arc reactor ring effect */
-  .vo-ring{position:relative;width:140px;height:140px}
-  .vo-ring::before,.vo-ring::after{content:'';position:absolute;inset:0;border-radius:50%;border:2px solid var(--gold);animation:ringpulse 2s ease-in-out infinite}
-  .vo-ring::after{animation-delay:.6s;inset:-12px;opacity:.4}
-  .vo-core{position:absolute;inset:20px;border-radius:50%;background:radial-gradient(circle,rgba(255,217,107,.3) 0%,rgba(255,217,107,.05) 60%,transparent 100%);display:flex;align-items:center;justify-content:center;font-size:36px;animation:corepulse 1.5s ease-in-out infinite}
-  @keyframes ringpulse{0%,100%{transform:scale(1);opacity:.8}50%{transform:scale(1.08);opacity:1}}
-  @keyframes corepulse{0%,100%{opacity:.7}50%{opacity:1}}
-  .vo-status{font-family:var(--font);font-size:26px;color:var(--gold);letter-spacing:3px}
-  .vo-hint{font-size:12px;color:var(--dim);text-transform:uppercase;letter-spacing:2px}
-  /* APK update banner */
-  .update-banner{display:flex;align-items:center;gap:8px;padding:8px 14px;background:var(--gold);color:#000;font-size:13px;font-weight:600;position:relative;z-index:100}
-  .update-banner span:first-child{flex:1}
-  .ub-btn{background:#000;color:var(--gold);border:none;padding:4px 12px;border-radius:8px;font-size:12px;font-weight:700;text-decoration:none;cursor:pointer}
-  .ub-close{cursor:pointer;padding:0 4px;opacity:.7}
-  /* token pill */
-  .model-bar-right{display:flex;align-items:center;gap:8px}
-  .token-pill{display:flex;align-items:center;gap:2px;padding:3px 8px;border-radius:12px;background:rgba(255,217,107,.12);border:1px solid rgba(255,217,107,.3);font-size:11px;color:var(--gold);font-variant-numeric:tabular-nums;transition:opacity .3s}
-  .token-pill.streaming{animation:tokpulse 1s infinite}
-  @keyframes tokpulse{0%,100%{opacity:1}50%{opacity:.5}}
-  .msg-tok{display:inline-block;font-size:10px;color:var(--dim);margin-top:3px;opacity:0.7}
-  /* chat list */
-  .chatitem{display:flex;align-items:center;gap:8px;padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--line);transition:background .12s}
-  .chatitem:active,.chatitem.active{background:rgba(255,217,107,.08)}
-  .ci-title{flex:1;font-size:14px;font-weight:500;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
-  .ci-actions{display:flex;gap:4px;flex-shrink:0;opacity:0;transition:opacity .15s}
-  .chatitem:hover .ci-actions,.chatitem:active .ci-actions{opacity:1}
-  .ci-btn{background:none;border:1px solid var(--line);border-radius:8px;padding:3px 7px;font-size:13px;cursor:pointer;color:var(--dim);transition:all .12s}
-  .ci-btn:active{background:var(--panel2)}
-  .ci-btn.del{color:var(--bad)}
-  .ci-btn.del:active{background:rgba(255,80,80,.12)}
-  .new-chat-btn{display:flex;align-items:center;justify-content:center;gap:6px;margin:10px 14px;padding:10px;border-radius:14px;border:1px solid var(--line);background:var(--panel2);cursor:pointer;font-size:14px;font-weight:600;color:var(--ink);transition:all .15s}
-  .new-chat-btn:active{background:rgba(255,217,107,.1);border-color:var(--gold)}
-  .img-bubble{margin:6px 0;border-radius:14px;overflow:hidden;max-width:280px}
-  .img-bubble img{width:100%;display:block;cursor:zoom-in;border-radius:14px}
-  .vid-bubble{margin:6px 0;max-width:280px}
-  .vid-bubble video{width:100%;border-radius:14px}
-  .agents-badge{font-size:10px;color:#6c63ff;margin-top:4px;opacity:.8}
-  .used{font-size:10px;color:var(--dim);margin-top:3px;opacity:.7}
-  .fb-row{display:flex;align-items:center;gap:4px;margin-top:4px;padding-left:2px}
-  .fb-btn{background:none;border:1px solid var(--line);border-radius:8px;padding:2px 8px;font-size:13px;cursor:pointer;color:var(--dim);line-height:1.4}
-  .fb-btn:active{background:var(--panel2)}
-  .fb-note{font-size:11px;color:var(--dim);margin-left:4px}
-  .lesson-card{background:var(--panel2);border-radius:10px;padding:10px 12px;margin:6px 4px;border-left:3px solid var(--gold)}
-  .lesson-card .lc-text{font-size:13px;color:var(--ink);line-height:1.5}
-  .lesson-card .lc-meta{display:flex;align-items:center;gap:8px;margin-top:6px}
-  .lesson-card .lc-badge{font-size:10px;padding:2px 7px;border-radius:10px;background:var(--panel);color:var(--dim);border:1px solid var(--line)}
-  .lesson-card .lc-imp{flex:1;height:3px;background:var(--line);border-radius:2px;overflow:hidden}
-  .lesson-card .lc-imp-fill{height:100%;background:var(--gold);border-radius:2px}
-  /* model bar */
-  .model-bar{flex:0 0 auto;display:flex;align-items:center;gap:6px;padding:5px 10px;background:var(--panel);border-top:1px solid var(--line)}
-  .model-pill{display:flex;align-items:center;gap:4px;padding:3px 9px;border-radius:14px;border:1px solid var(--line);background:var(--panel2);cursor:pointer;font-size:12px;color:var(--ink);user-select:none;-webkit-user-select:none;transition:all .15s;flex-shrink:0}
-  .model-pill:active,.model-pill.active{border-color:var(--gold)}
-  .model-pill.active .mname{color:var(--gold)}
-  .model-pill .micon{font-size:12px}
-  .model-pill .mname{font-weight:600;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .model-pill .mchev{color:var(--dim);font-size:9px;flex-shrink:0}
-  .model-quick{display:flex;gap:4px;flex:1;overflow:hidden}
-  .mq-chip{display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);cursor:pointer;font-size:13px;flex-shrink:0;transition:border-color .15s,background .15s;position:relative}
-  .mq-chip:active,.mq-chip.sel{border-color:var(--gold);background:rgba(255,217,107,.12)}
-  .agent-btn{display:flex;align-items:center;gap:3px;padding:3px 8px;border-radius:12px;border:1px solid var(--line);background:var(--panel2);cursor:pointer;font-size:11px;color:var(--dim);font-weight:600;flex-shrink:0;transition:all .15s;-webkit-user-select:none;user-select:none}
-  .agent-btn.on{border-color:#6c63ff;background:rgba(108,99,255,.12);color:#6c63ff}
-  .model-bar-right{display:flex;align-items:center;gap:6px;flex-shrink:0}
-  .token-pill{display:flex;align-items:center;gap:2px;padding:2px 7px;border-radius:12px;background:rgba(255,217,107,.12);border:1px solid rgba(255,217,107,.3);font-size:10px;color:var(--gold);font-variant-numeric:tabular-nums}
-  /* model drawer */
-  .model-dropdown{position:fixed;bottom:0;left:0;right:0;background:var(--panel);border-top:1px solid var(--line);border-radius:20px 20px 0 0;z-index:60;padding-bottom:calc(8px + env(safe-area-inset-bottom));transform:translateY(100%);transition:transform .25s cubic-bezier(.4,0,.2,1);max-height:75vh;overflow-y:auto}
-  .model-dropdown.open{transform:translateY(0)}
-  .md-handle{width:36px;height:4px;border-radius:2px;background:var(--line);margin:10px auto 6px}
-  .md-source{padding:6px 14px 3px;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);display:flex;align-items:center;gap:6px}
-  .md-src-count{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:1px 6px;font-size:9px;color:var(--dim)}
-  .md-item{display:flex;align-items:center;gap:10px;padding:8px 14px;cursor:pointer;transition:background .1s}
-  .md-item:active,.md-item.selected{background:rgba(255,217,107,.07)}
-  .md-item .mi-icon{font-size:16px;width:24px;text-align:center;flex-shrink:0}
-  .md-item .mi-info{flex:1;min-width:0}
-  .md-item .mi-name{font-size:13px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .md-item .mi-meta{font-size:10px;color:var(--dim);margin-top:1px;display:flex;align-items:center;gap:4px}
-  .md-item .mi-ctx{color:var(--dim)}
-  .md-item .mi-bm{color:var(--gold);font-weight:700}
-  .md-item .mi-free{background:rgba(80,200,120,.12);border:1px solid rgba(80,200,120,.3);color:#50c878;font-size:9px;padding:1px 5px;border-radius:6px;font-weight:700}
-  .md-source-row{display:flex;align-items:center;justify-content:space-between;padding:6px 14px 3px;cursor:pointer}
-  .md-source-row .md-source{padding:0}
-  .md-src-toggle{font-size:10px;color:var(--dim)}
-  .md-section{overflow:hidden;transition:max-height .2s}
-  .md-section.collapsed{max-height:0!important}
-  .md-footer{padding:10px 14px;border-top:1px solid var(--line)}
-  .model-scrim{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:59;display:none}
-  .model-scrim.on{display:block}
-  .scrim{position:fixed;inset:0;background:rgba(0,0,0,.55);opacity:0;pointer-events:none;transition:.25s;z-index:40}
-  .scrim.on{opacity:1;pointer-events:auto}
-  .panel{position:fixed;top:0;bottom:0;width:88%;max-width:380px;background:var(--panel);z-index:50;transition:transform .28s cubic-bezier(.4,0,.2,1);display:flex;flex-direction:column}
-  .left{left:0;transform:translateX(-104%);border-right:1px solid var(--line)}
-  .left.on{transform:translateX(0)}
-  .right{right:0;transform:translateX(104%);border-left:1px solid var(--line)}
-  .right.on{transform:translateX(0)}
-  .center-up{left:0;right:0;margin:0 auto;width:100%;max-width:680px;transform:translateY(105%);opacity:0;pointer-events:none;transition:.28s;height:100%}
-  .center-up.on{transform:translateY(0);opacity:1;pointer-events:auto}
-  .panel h3{font-family:var(--font);color:var(--gold);letter-spacing:2px;font-size:16px;margin:0;padding:16px 16px 8px}
-  .panel .sec{padding:6px 12px;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-top:6px}
-  .row{padding:11px 16px;display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px;border-radius:10px;margin:1px 8px}
-  .row:active{background:var(--panel2)}
-  .row .ic{width:22px;text-align:center;opacity:.85}
-  .chatlist{flex:1;overflow-y:auto}
-  .field{padding:8px 16px}
-  .field label{display:block;font-size:11px;color:var(--dim);margin-bottom:5px;text-transform:uppercase;letter-spacing:1px}
-  .field input,.field select,.field textarea{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:10px;color:var(--ink);padding:11px;font-size:14px;outline:none;font-family:inherit}
-  .field textarea{min-height:80px;resize:vertical}
-  .btn-row{display:flex;gap:6px;padding:10px 16px}
-  .tm-btn{flex:1;text-align:center;padding:10px;border-radius:10px;background:var(--panel2);border:1px solid var(--line);color:var(--gold);cursor:pointer;font-size:13px}
-  .tm-btn.primary{background:var(--gold);color:#0a0a0a;border:none}
-  .tm-btn.danger{background:#3a1f1f;color:#ff8787}
-  /* Jarvis voice toggle button */
-  .tm-btn.jarvis-on{background:rgba(255,217,107,.12);border-color:var(--gold);color:var(--gold)}
-  .tm-btn.jarvis-off{background:var(--panel2);border-color:var(--line);color:var(--dim)}
-  .empty{padding:20px;color:var(--dim);text-align:center;font-size:13px}
-  .proj-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:middle}
-  .proj-dot.running{background:var(--good)}
-  .proj-dot.done{background:#5c7cfa}
-  .proj-dot.paused{background:#fab005}
-  .proj-dot.error{background:var(--bad)}
-  .proj-dot.idle{background:var(--dim)}
-  .log-line{font-family:monospace;font-size:11px;padding:2px 0;color:var(--dim)}
-  .log-line.step{color:var(--good)}
-  .log-line.error{color:var(--bad)}
-  .log-line.file{color:#74c0fc}
+:root{
+  --bg:#0a0906;--panel:#131109;--panel2:#1c1911;--line:#2a261d;
+  --ink:#f0e6cc;--gold:#ffd96b;--dim:#8a8068;--good:#6bcf7f;--bad:#ff7070;
+  --font:'Georgia',serif;--radius:14px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,sans-serif;font-size:15px;overflow:hidden}
+.app{height:100dvh;display:flex;flex-direction:column;position:relative}
+
+/* topbar */
+.topbar{flex:0 0 auto;height:52px;display:flex;align-items:center;gap:8px;padding:0 10px;border-bottom:1px solid var(--line);background:var(--panel);z-index:30}
+.iconbtn{width:36px;height:36px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--gold);font-size:17px;display:grid;place-items:center;cursor:pointer;flex-shrink:0;transition:background .1s}
+.iconbtn:active{background:var(--line)}
+.kai-title{flex:1;font-family:var(--font);font-size:20px;color:var(--gold);letter-spacing:3px;font-weight:normal;padding-left:2px}
+.status-dot{width:7px;height:7px;border-radius:50%;background:var(--dim);flex-shrink:0;transition:background .3s}
+.status-dot.on{background:var(--good)}
+.status-dot.err{background:var(--bad)}
+
+/* modepill */
+.modepill{flex:0 0 auto;padding:2px 10px;font-size:10px;letter-spacing:.8px;color:var(--dim);background:var(--panel);border-bottom:1px solid var(--line);text-align:center;min-height:18px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* messages */
+.msgs{flex:1;overflow-y:auto;padding:12px 10px;display:flex;flex-direction:column;gap:8px;background:var(--bg)}
+.msg{max-width:86%;padding:10px 13px;border-radius:var(--radius);line-height:1.5;word-wrap:break-word;font-size:14px;animation:fadein .2s}
+@keyframes fadein{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.msg.me{background:var(--gold);color:#0a0806;align-self:flex-end;border-bottom-right-radius:4px;font-weight:500}
+.msg.kai{background:var(--panel2);border:1px solid var(--line);border-bottom-left-radius:4px;align-self:flex-start}
+.kai-body{white-space:pre-wrap}
+.kai-body code{background:var(--panel);padding:1px 5px;border-radius:4px;font-family:monospace;font-size:12px}
+.kai-body pre{background:#000;padding:10px;border-radius:8px;overflow-x:auto;margin:6px 0}
+.kai-body pre code{background:none;padding:0;font-size:12px}
+.msg a.artifact{display:inline-flex;align-items:center;gap:4px;background:var(--gold);color:#0a0806;padding:5px 11px;border-radius:8px;text-decoration:none;font-weight:600;margin:3px 3px 3px 0;font-size:13px}
+.msg.kai a{color:var(--gold)}
+.used{margin-top:6px;padding-top:5px;border-top:1px solid var(--line);font-size:10px;color:var(--dim);font-family:monospace;opacity:.7}
+.msg-tok{display:block;font-size:10px;color:var(--dim);margin-top:3px;opacity:.6}
+.agents-badge{font-size:10px;color:#8b7fff;margin-top:3px;opacity:.8}
+.fb-row{display:flex;align-items:center;gap:4px;margin-top:5px}
+.fb-btn{background:none;border:1px solid var(--line);border-radius:8px;padding:2px 8px;font-size:13px;cursor:pointer;color:var(--dim);line-height:1.4}
+.fb-btn:active{background:var(--panel2)}
+.fb-note{font-size:11px;margin-left:4px}
+.fb-note.good{color:var(--good)}
+.fb-note.bad{color:var(--bad)}
+.img-bubble{margin:5px 0;border-radius:12px;overflow:hidden;max-width:260px;background:var(--panel)}
+.img-bubble img{width:100%;display:block;border-radius:12px;cursor:zoom-in}
+.vid-bubble{margin:5px 0;max-width:260px}
+.vid-bubble video{width:100%;border-radius:12px;background:#000;display:block}
+.empty{padding:24px 16px;color:var(--dim);text-align:center;font-size:13px;line-height:1.6}
+
+/* model bar */
+.model-bar{flex:0 0 auto;display:flex;align-items:center;gap:6px;padding:5px 8px;background:var(--panel);border-top:1px solid var(--line)}
+.model-pill{display:flex;align-items:center;gap:4px;padding:4px 9px;border-radius:12px;border:1px solid var(--line);background:var(--panel2);cursor:pointer;font-size:12px;color:var(--ink);user-select:none;-webkit-user-select:none;transition:border-color .15s;flex-shrink:0;max-width:130px}
+.model-pill:active,.model-pill.active{border-color:var(--gold)}
+.model-pill .mname{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--gold)}
+.model-pill .mchev{color:var(--dim);font-size:9px;flex-shrink:0}
+.model-quick{display:flex;gap:4px;flex:1;overflow:hidden}
+.mq-chip{width:28px;height:28px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);cursor:pointer;font-size:13px;display:grid;place-items:center;flex-shrink:0;transition:border-color .12s,background .12s}
+.mq-chip.sel,.mq-chip:active{border-color:var(--gold);background:rgba(255,217,107,.1)}
+.agent-btn{display:flex;align-items:center;gap:3px;padding:3px 8px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);cursor:pointer;font-size:11px;color:var(--dim);font-weight:600;flex-shrink:0;transition:all .15s;user-select:none}
+.agent-btn.on{border-color:#8b7fff;background:rgba(139,127,255,.12);color:#8b7fff}
+.token-pill{display:flex;align-items:center;gap:2px;padding:2px 7px;border-radius:10px;background:rgba(255,217,107,.08);border:1px solid rgba(255,217,107,.2);font-size:10px;color:var(--gold);flex-shrink:0}
+.token-pill.streaming{animation:tokpulse .8s infinite}
+@keyframes tokpulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* model drawer */
+.model-scrim{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:59;display:none}
+.model-scrim.on{display:block}
+.model-dropdown{position:fixed;bottom:0;left:0;right:0;background:var(--panel);border-top:1px solid var(--line);border-radius:20px 20px 0 0;z-index:60;padding-bottom:calc(6px + env(safe-area-inset-bottom));transform:translateY(100%);transition:transform .25s cubic-bezier(.4,0,.2,1);max-height:78vh;overflow-y:auto}
+.model-dropdown.open{transform:translateY(0)}
+.md-handle{width:36px;height:4px;border-radius:2px;background:var(--line);margin:10px auto 6px}
+.md-source-row{display:flex;align-items:center;justify-content:space-between;padding:6px 14px 3px;cursor:pointer;user-select:none}
+.md-source{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--dim);display:flex;align-items:center;gap:6px}
+.md-src-count{background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:1px 6px;font-size:9px}
+.md-src-toggle{font-size:10px;color:var(--dim)}
+.md-section{overflow:hidden;transition:max-height .2s}
+.md-section.collapsed{max-height:0!important}
+.md-item{display:flex;align-items:flex-start;gap:10px;padding:8px 14px;cursor:pointer;transition:background .1s}
+.md-item:active,.md-item.selected{background:rgba(255,217,107,.06)}
+.mi-icon{font-size:16px;width:24px;text-align:center;flex-shrink:0;margin-top:1px}
+.mi-info{flex:1;min-width:0}
+.mi-name{font-size:13px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mi-meta{font-size:10px;color:var(--dim);margin-top:1px;display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.mi-free{background:rgba(107,207,127,.1);border:1px solid rgba(107,207,127,.3);color:var(--good);font-size:9px;padding:1px 5px;border-radius:5px;font-weight:700}
+.mi-local{background:rgba(255,217,107,.08);border:1px solid rgba(255,217,107,.2);color:var(--gold);font-size:9px;padding:1px 5px;border-radius:5px;font-weight:700}
+.md-footer{padding:10px 14px;border-top:1px solid var(--line)}
+
+/* attach */
+.attach-preview{display:none;padding:5px 10px;gap:6px;background:var(--panel);border-top:1px solid var(--line);overflow-x:auto;white-space:nowrap}
+.attach-preview.on{display:flex}
+.thumb{position:relative;flex-shrink:0;width:56px;height:56px;border-radius:8px;overflow:hidden;border:1px solid var(--line)}
+.thumb img{width:100%;height:100%;object-fit:cover}
+.thumb .rm{position:absolute;top:2px;right:2px;background:rgba(0,0,0,.75);color:#fff;width:17px;height:17px;border-radius:50%;display:grid;place-items:center;font-size:11px;cursor:pointer;border:none}
+.thumb.uploading::after{content:'';position:absolute;inset:0;background:rgba(0,0,0,.45);background-image:linear-gradient(90deg,transparent 25%,rgba(255,217,107,.3) 50%,transparent 75%);background-size:200% 100%;animation:shimmer 1.2s linear infinite}
+@keyframes shimmer{0%{background-position:200% 0}to{background-position:-200% 0}}
+
+/* composer */
+.composer{flex:0 0 auto;padding:8px 10px calc(8px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--panel);display:flex;gap:7px;align-items:flex-end}
+.composer textarea{flex:1;resize:none;max-height:120px;min-height:42px;background:var(--panel2);border:1px solid var(--line);border-radius:12px;color:var(--ink);padding:10px 12px;font-size:15px;outline:none;font-family:inherit;line-height:1.4;transition:border-color .15s}
+.composer textarea:focus{border-color:rgba(255,217,107,.3)}
+.send-btn{width:42px;height:42px;border-radius:12px;border:none;background:var(--gold);color:#0a0806;font-size:18px;cursor:pointer;flex-shrink:0;font-weight:700;transition:opacity .1s}
+.send-btn:disabled{opacity:.4}
+.icon-btn2{width:42px;height:42px;border-radius:12px;border:1px solid var(--line);background:var(--panel2);color:var(--gold);font-size:17px;cursor:pointer;flex-shrink:0;display:grid;place-items:center;transition:background .1s}
+.icon-btn2:active{background:var(--line)}
+.mic-btn{width:42px;height:42px;border-radius:12px;border:1px solid var(--line);background:var(--panel2);color:var(--gold);font-size:17px;cursor:pointer;flex-shrink:0;display:grid;place-items:center;user-select:none;-webkit-user-select:none;transition:all .15s}
+.mic-btn.recording{background:#c0392b;color:#fff;border-color:#c0392b;animation:recpulse 1s ease-in-out infinite}
+@keyframes recpulse{0%,100%{box-shadow:0 0 0 0 rgba(192,57,43,.5)}50%{box-shadow:0 0 0 10px rgba(192,57,43,0)}}
+
+/* voice overlay */
+.voice-overlay{position:fixed;inset:0;background:rgba(0,0,0,.92);display:none;align-items:center;justify-content:center;z-index:100;backdrop-filter:blur(12px)}
+.voice-overlay.on{display:flex}
+.vo-inner{text-align:center;display:flex;flex-direction:column;align-items:center;gap:18px}
+.vo-ring{position:relative;width:136px;height:136px}
+.vo-ring::before,.vo-ring::after{content:'';position:absolute;inset:0;border-radius:50%;border:2px solid var(--gold);animation:ringpulse 2s ease-in-out infinite}
+.vo-ring::after{animation-delay:.7s;inset:-14px;opacity:.35}
+.vo-core{position:absolute;inset:22px;border-radius:50%;background:radial-gradient(circle,rgba(255,217,107,.25) 0%,transparent 70%);display:flex;align-items:center;justify-content:center;font-size:32px;animation:corepulse 1.6s ease-in-out infinite}
+@keyframes ringpulse{0%,100%{transform:scale(1);opacity:.7}50%{transform:scale(1.07);opacity:1}}
+@keyframes corepulse{0%,100%{opacity:.6}50%{opacity:1}}
+.vo-label{font-family:var(--font);font-size:24px;color:var(--gold);letter-spacing:3px}
+.vo-hint{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:2px}
+
+/* local loading banner */
+.local-load-banner{position:fixed;top:0;left:0;right:0;z-index:200;background:rgba(0,0,0,.9);border-bottom:1px solid var(--gold);padding:10px 16px;backdrop-filter:blur(8px)}
+.llb-inner{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--ink)}
+.llb-spin{color:var(--gold);animation:spin 1s linear infinite;font-size:18px;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* update banner */
+.update-banner{display:flex;align-items:center;gap:8px;padding:7px 12px;background:var(--gold);color:#0a0806;font-size:13px;font-weight:600;z-index:100}
+.update-banner span:first-child{flex:1}
+.ub-btn{background:#0a0806;color:var(--gold);border:none;padding:4px 11px;border-radius:7px;font-size:12px;font-weight:700;text-decoration:none}
+.ub-close{cursor:pointer;padding:0 4px;opacity:.6}
+
+/* panels */
+.scrim{position:fixed;inset:0;background:rgba(0,0,0,.6);opacity:0;pointer-events:none;transition:.22s;z-index:40}
+.scrim.on{opacity:1;pointer-events:auto}
+.panel{position:fixed;top:0;bottom:0;width:88%;max-width:370px;background:var(--panel);z-index:50;transition:transform .26s cubic-bezier(.4,0,.2,1);display:flex;flex-direction:column;overflow:hidden}
+.panel-left{left:0;transform:translateX(-105%);border-right:1px solid var(--line)}
+.panel-left.on{transform:translateX(0)}
+.panel-right{right:0;transform:translateX(105%);border-left:1px solid var(--line)}
+.panel-right.on{transform:translateX(0)}
+.panel-center{left:0;right:0;margin:0 auto;width:100%;max-width:700px;transform:translateY(105%);opacity:0;pointer-events:none;transition:.26s;height:100%}
+.panel-center.on{transform:translateY(0);opacity:1;pointer-events:auto}
+.panel-header{display:flex;align-items:center;justify-content:space-between;padding:14px 14px 8px;border-bottom:1px solid var(--line);flex-shrink:0}
+.panel-title{font-family:var(--font);color:var(--gold);font-size:18px;font-weight:normal;letter-spacing:2px}
+.panel-body{flex:1;overflow-y:auto}
+.menu-row{display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer;font-size:14px;border-radius:10px;margin:2px 8px;transition:background .1s}
+.menu-row:active{background:var(--panel2)}
+.menu-row .ic{width:20px;text-align:center;opacity:.8;font-size:16px}
+.sec-label{padding:8px 14px 3px;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-top:4px}
+.chatitem{display:flex;align-items:center;gap:7px;padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--line);transition:background .1s}
+.chatitem:active,.chatitem.active{background:rgba(255,217,107,.06)}
+.ci-title{flex:1;font-size:13px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ci-actions{display:flex;gap:3px;opacity:0;transition:opacity .1s}
+.chatitem:active .ci-actions{opacity:1}
+.ci-btn{background:none;border:1px solid var(--line);border-radius:7px;padding:2px 7px;font-size:12px;cursor:pointer;color:var(--dim)}
+.ci-btn.del{color:var(--bad)}
+.new-chat-btn{display:flex;align-items:center;justify-content:center;gap:6px;margin:10px 12px;padding:10px;border-radius:12px;border:1px solid var(--line);background:var(--panel2);cursor:pointer;font-size:14px;font-weight:600;color:var(--ink);transition:all .12s}
+.new-chat-btn:active{border-color:var(--gold);color:var(--gold)}
+.field{padding:7px 14px}
+.field label{display:block;font-size:10px;color:var(--dim);margin-bottom:4px;text-transform:uppercase;letter-spacing:1px}
+.field input,.field select{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:10px;color:var(--ink);padding:10px 12px;font-size:14px;outline:none;font-family:inherit}
+.field input:focus,.field select:focus{border-color:rgba(255,217,107,.3)}
+.btn-row{display:flex;gap:6px;padding:8px 14px}
+.tm-btn{flex:1;text-align:center;padding:9px;border-radius:10px;background:var(--panel2);border:1px solid var(--line);color:var(--gold);cursor:pointer;font-size:13px;transition:background .1s}
+.tm-btn:active{background:var(--line)}
+.tm-btn.primary{background:var(--gold);color:#0a0806;border:none;font-weight:600}
+.tm-btn.danger{background:#2a0f0f;color:var(--bad);border-color:#3a1515}
+.tm-btn.on{border-color:var(--gold);background:rgba(255,217,107,.1)}
+.lesson-card{background:var(--panel2);border-radius:10px;padding:10px 12px;margin:5px;border-left:3px solid var(--gold)}
+.lc-text{font-size:13px;line-height:1.5}
+.lc-meta{display:flex;align-items:center;gap:7px;margin-top:5px}
+.lc-badge{font-size:10px;padding:1px 6px;border-radius:8px;background:var(--panel);color:var(--dim);border:1px solid var(--line)}
+.lc-imp{flex:1;height:3px;background:var(--line);border-radius:2px;overflow:hidden}
+.lc-imp-fill{height:100%;background:var(--gold);border-radius:2px}
+.proj-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px;vertical-align:middle}
+.proj-dot.running{background:var(--good)}.proj-dot.done{background:#5c7cfa}.proj-dot.paused{background:#fab005}.proj-dot.error{background:var(--bad)}.proj-dot.idle{background:var(--dim)}
+.log-line{font-family:monospace;font-size:11px;padding:1px 0;color:var(--dim)}
+.log-line.step{color:var(--good)}.log-line.error{color:var(--bad)}.log-line.file{color:#74c0fc}
 </style>
 </head>
 <body>
 <div class="app">
+  <!-- Top bar -->
   <div class="topbar">
-    <button class="iconbtn" id="openMenu">☰</button>
-    <div class="title">KAI</div>
-    <div class="status-dot" id="srvDot" title="server status"></div>
+    <button class="iconbtn" id="openMenu" aria-label="Menu">☰</button>
+    <div class="kai-title">KAI</div>
+    <div class="status-dot" id="srvDot"></div>
     <button class="iconbtn" id="openComputer" title="KAI Computer">💻</button>
-    <!-- BUG FIX: unique ID so it doesn't clash with left panel button -->
-    <button class="iconbtn" id="newChatTopBtn">+</button>
+    <button class="iconbtn" id="newChatTopBtn" title="New chat">＋</button>
   </div>
 
-  <!-- BUG FIX: modepill now exists in the DOM -->
+  <!-- Status pill -->
   <div class="modepill" id="modepill">connecting…</div>
 
-  <div class="msgs" id="msgs"></div>
+  <!-- Messages -->
+  <div class="msgs" id="msgs">
+    <div class="empty">Start a conversation with KAI.</div>
+  </div>
+
+  <!-- Model bar -->
   <div class="model-bar">
     <div class="model-pill" id="modelPill">
-      <span class="micon" id="modelPillIcon">✦</span>
+      <span id="modelPillIcon">✦</span>
       <span class="mname" id="modelPillName">OpenRouter Auto</span>
       <span class="mchev">▾</span>
     </div>
-    <div class="model-quick" id="modelQuick">
+    <div class="model-quick">
       <div class="mq-chip" data-pid="or_gptoss120b"   title="GPT-OSS 120B">🔥</div>
       <div class="mq-chip" data-pid="or_nemotron550b" title="Nemotron 550B">⚡</div>
       <div class="mq-chip" data-pid="or_llama70b"     title="Llama 70B">🦙</div>
-      <div class="mq-chip" data-pid="or_gemma31b"     title="Gemma 31B">💎</div>
-      <div class="mq-chip" data-pid="or_qwen3_coder"  title="Qwen Coder 480B">🧑‍💻</div>
+      <div class="mq-chip" data-pid="local_qwen25_1b" title="Qwen 1.5B on device">📱</div>
+      <div class="mq-chip" data-pid="or_kimi"         title="Kimi K2">🌙</div>
     </div>
-    <button class="agent-btn" id="agentBtn" title="All models collaborate on this task">🤖</button>
-    <div class="model-bar-right">
-      <div class="token-pill" id="tokenPill" style="display:none">
-        <span id="tokenCount">0</span><span style="color:var(--dim)"> tok</span>
-      </div>
+    <button class="agent-btn" id="agentBtn" title="Agentic mode">🤖</button>
+    <div class="token-pill" id="tokenPill" style="display:none">
+      <span id="tokenCount">0</span><span style="color:var(--dim)">t</span>
     </div>
-  </div>
-  <div class="model-scrim" id="modelScrim"></div>
-  <div class="model-dropdown" id="modelDropdown">
-    <div class="md-handle"></div>
-  </div>
-  <div id="attachPreview" class="attach-preview"></div>
-  <div class="composer">
-    <input type="file" id="imgPicker" accept="image/*" style="display:none" multiple>
-    <button class="img" id="imgBtn" title="attach image">📷</button>
-    <textarea id="input" placeholder="message kai…" rows="1"></textarea>
-    <button class="mic" id="micBtn" title="hold to talk">🎙</button>
-    <button class="send" id="sendBtn">↑</button>
   </div>
 
-  <!-- Jarvis voice overlay — arc reactor style -->
+  <!-- Model drawer -->
+  <div class="model-scrim" id="modelScrim"></div>
+  <div class="model-dropdown" id="modelDropdown"><div class="md-handle"></div></div>
+
+  <!-- Attach preview -->
+  <div id="attachPreview" class="attach-preview"></div>
+
+  <!-- Composer -->
+  <div class="composer">
+    <input type="file" id="imgPicker" accept="image/*" style="display:none" multiple>
+    <button class="icon-btn2" id="imgBtn" title="Attach image">📷</button>
+    <textarea id="input" placeholder="message kai…" rows="1"></textarea>
+    <button class="mic-btn" id="micBtn" title="Voice input">🎙</button>
+    <button class="send-btn" id="sendBtn">↑</button>
+  </div>
+
+  <!-- Voice overlay -->
   <div class="voice-overlay" id="voiceOverlay">
     <div class="vo-inner">
       <div class="vo-ring"><div class="vo-core">🔵</div></div>
-      <div class="vo-status" id="voStatus">listening…</div>
-      <div class="vo-hint">release to send · tap to cancel</div>
+      <div class="vo-label" id="voStatus">listening…</div>
+      <div class="vo-hint">release · tap to cancel</div>
     </div>
   </div>
 </div>
 
 <!-- LEFT MENU -->
 <div class="scrim" id="scrimL"></div>
-<div class="panel left" id="panelL">
-  <h3>KAI</h3>
-  <!-- BUG FIX: left panel new-chat uses id="newChatBtn" (different from topbar) -->
+<div class="panel panel-left" id="panelL">
+  <div class="panel-header">
+    <span class="panel-title">KAI</span>
+  </div>
   <div class="new-chat-btn" id="newChatBtn">✦ New Chat</div>
-  <div class="row" id="goSetup"><span class="ic">⚙</span> Setup / API key</div>
-  <div class="row" id="goNotes"><span class="ic">📝</span> What KAI remembers</div>
-  <div class="row" id="goLessons"><span class="ic">🧠</span> What KAI learned</div>
-  <div class="row" id="goImageGen"><span class="ic">🎨</span> Generate image</div>
-  <div class="row" id="goReelGen"><span class="ic">🎬</span> Create reel</div>
-  <div class="sec">Chats</div>
-  <div class="chatlist" id="chatlist"></div>
+  <div class="menu-row" id="goSetup"><span class="ic">⚙</span> Setup &amp; API keys</div>
+  <div class="menu-row" id="goNotes"><span class="ic">📝</span> What KAI remembers</div>
+  <div class="menu-row" id="goLessons"><span class="ic">🧠</span> What KAI learned</div>
+  <div class="menu-row" id="goImageGen"><span class="ic">🎨</span> Generate image</div>
+  <div class="menu-row" id="goReelGen"><span class="ic">🎬</span> Create reel</div>
+  <div class="sec-label">Chats</div>
+  <div class="panel-body" id="chatlist"></div>
 </div>
 
 <!-- SETUP PANEL -->
 <div class="scrim" id="scrimS"></div>
-<div class="panel right" id="panelS" style="overflow-y:auto">
-  <h3>Setup</h3>
-  <div class="field"><label>Status</label><div id="enrollStat" style="font-size:13px;color:var(--dim)">checking…</div></div>
+<div class="panel panel-right" id="panelS" style="overflow-y:auto">
+  <div class="panel-header"><span class="panel-title">Setup</span></div>
+  <div class="field"><label>Connection status</label><div id="enrollStat" style="font-size:13px;color:var(--dim)">checking…</div></div>
   <div class="field"><label>KAI API key</label><input id="kaiKeyInput" type="password" placeholder="kai_..."></div>
-  <div class="btn-row"><button class="tm-btn primary" id="saveKaiKey">Save KAI key</button><button class="tm-btn" id="testKey">Test</button></div>
+  <div class="btn-row"><button class="tm-btn primary" id="saveKaiKey">Save key</button><button class="tm-btn" id="testKey">Test</button></div>
 
-  <!-- Jarvis voice toggle -->
-  <div class="sec">Jarvis Voice</div>
-  <div class="btn-row">
-    <button class="tm-btn jarvis-on" id="jarvisToggle">🔊 Jarvis Voice ON</button>
-  </div>
-  <div class="field"><label style="font-size:11px;color:var(--dim)">KAI speaks every reply automatically — like Jarvis. Tap mic to talk back.</label></div>
+  <div class="sec-label">Jarvis Voice</div>
+  <div class="btn-row"><button class="tm-btn" id="jarvisToggle">🔊 Jarvis Voice ON</button></div>
+  <div class="field"><label style="text-transform:none;letter-spacing:0;color:var(--dim)">KAI speaks every reply automatically. Use mic to talk back.</label></div>
 
-  <div class="sec">KAI Built-in AI</div>
-  <div class="field"><label id="builtinStatus" style="font-size:13px;color:var(--good)">✦ Qwen 2.5 7B · always connected · free</label></div>
-  <div class="field"><label style="font-size:11px;color:var(--dim)">No key needed — select it in the model picker beside the chat.</label></div>
+  <div class="sec-label">KAI Built-in AI</div>
+  <div class="field"><div id="builtinStatus" style="font-size:13px;color:var(--good)">✦ Qwen 2.5 7B · always connected · free</div></div>
 
-  <div class="sec">Add more models (optional)</div>
-  <div class="field"><label>Provider for KAI's brain</label>
+  <div class="sec-label">Add provider key (optional)</div>
+  <div class="field"><label>Provider</label>
     <select id="provSel">
-      <option value="kai_builtin">★ KAI Built-in · Qwen 2.5 7B (no key needed after activation)</option>
-      <option value="groq">Groq · Llama 3.3 70B (recommended — fastest)</option>
-      <option value="hf">HuggingFace · Llama 3.3 70B (via HF Providers)</option>
-      <option value="cerebras">Cerebras · Llama 3.3 70B (free tier)</option>
-      <option value="mistral">Mistral · small-latest (free tier)</option>
+      <option value="kai_builtin">★ KAI Built-in · Qwen 2.5 7B (no key needed)</option>
+      <option value="groq">Groq · Llama 3.3 70B (fastest)</option>
+      <option value="hf">HuggingFace · Qwen 2.5 7B</option>
+      <option value="cerebras">Cerebras · Llama 70B (free tier)</option>
+      <option value="mistral">Mistral · small-latest</option>
     </select>
   </div>
-  <div class="field"><label>Provider key (for Groq/HF/Cerebras/Mistral only)</label><input id="apiKey" type="password" placeholder="gsk_... or hf_... or csk-..."></div>
-  <div class="btn-row"><button class="tm-btn primary" id="saveKey">Save provider key</button><button class="tm-btn" id="testProv">Test provider</button></div>
-  <div class="field"><label style="font-size:11px;color:var(--dim)" id="provHint">Get free Groq key: console.groq.com/keys</label></div>
+  <div class="field"><label>API key</label><input id="apiKey" type="password" placeholder="gsk_... or hf_..."></div>
+  <div class="btn-row"><button class="tm-btn primary" id="saveKey">Save</button><button class="tm-btn" id="testProv">Test</button></div>
+  <div class="field"><label id="provHint" style="text-transform:none;letter-spacing:0;color:var(--dim)">Get free Groq key: console.groq.com/keys</label></div>
 
-  <div class="sec">Advanced — server URL</div>
+  <div class="sec-label">Advanced</div>
   <div class="field"><label>Server URL</label><input id="srvUrl" placeholder="https://...supabase.co/functions/v1/kai-brain"></div>
-
-  <div class="sec">Danger zone</div>
   <div class="btn-row"><button class="tm-btn danger" id="forgetDev">Forget this device</button></div>
 </div>
 
-<!-- KAI COMPUTER PANEL -->
+<!-- KAI COMPUTER -->
 <div class="scrim" id="scrimC"></div>
-<div class="panel center-up" id="panelC">
-  <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--line)">
-    <h3 style="padding:0">💻 KAI Computer</h3>
-    <div>
-      <button class="tm-btn" id="cRefresh">↻</button>
-      <button class="tm-btn" id="cClose">✕</button>
-    </div>
+<div class="panel panel-center" id="panelC">
+  <div class="panel-header">
+    <span class="panel-title">💻 KAI Computer</span>
+    <div style="display:flex;gap:6px"><button class="tm-btn" id="cRefresh" style="flex:none;padding:5px 10px">↻</button><button class="tm-btn" id="cClose" style="flex:none;padding:5px 10px">✕</button></div>
   </div>
   <div style="display:flex;flex:1;overflow:hidden">
     <div style="width:38%;border-right:1px solid var(--line);overflow-y:auto">
-      <div class="sec" style="padding:8px">Projects</div>
+      <div class="sec-label" style="padding:8px 12px">Projects</div>
       <div id="projList"></div>
     </div>
-    <div style="flex:1;overflow-y:auto;padding:10px">
-      <div id="projDetail" class="empty">Select a project to view.<br>KAI creates these when you ask for multi-step work.</div>
-    </div>
+    <div style="flex:1;overflow-y:auto;padding:10px"><div id="projDetail" class="empty">Select a project.</div></div>
   </div>
 </div>
 
-<!-- NOTES PANEL -->
+<!-- NOTES -->
 <div class="scrim" id="scrimN"></div>
-<div class="panel right" id="panelN">
-  <h3>What KAI remembers</h3>
-  <div id="notesList" style="flex:1;overflow-y:auto;padding:0 8px"></div>
+<div class="panel panel-right" id="panelN">
+  <div class="panel-header"><span class="panel-title">Memory</span></div>
+  <div class="panel-body" id="notesList" style="padding:0 8px"></div>
   <div class="btn-row"><button class="tm-btn primary" id="addNote">+ Add note</button></div>
 </div>
 
-<!-- LESSONS PANEL -->
+<!-- LESSONS -->
 <div class="scrim" id="scrimK"></div>
-<div class="panel right" id="panelK">
-  <h3>What KAI learned</h3>
-  <div style="font-size:11px;color:var(--dim);padding:0 12px 8px">KAI writes behavioral lessons after every 8 messages and when you give feedback. These shape every future conversation.</div>
-  <div id="lessonsList" style="flex:1;overflow-y:auto;padding:0 8px"></div>
+<div class="panel panel-right" id="panelK">
+  <div class="panel-header"><span class="panel-title">What KAI learned</span></div>
+  <div style="font-size:11px;color:var(--dim);padding:4px 14px 8px">Behavioral lessons from feedback &amp; self-eval. Shape every response.</div>
+  <div class="panel-body" id="lessonsList" style="padding:0 8px"></div>
   <div class="btn-row"><button class="tm-btn" id="runSelfEval">▶ Run self-eval now</button></div>
 </div>
 
