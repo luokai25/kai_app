@@ -5,54 +5,50 @@ on:
     branches: [main]
 
 jobs:
-  build-and-deploy:
+  deploy-supabase:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-
-      # ── Deploy Edge Function to Supabase (auto, skips gracefully if no token) ──
-      - name: Setup Supabase CLI
-        uses: supabase/setup-cli@v1
+      - uses: actions/checkout@v3
+      - uses: supabase/setup-cli@v1
         with:
           version: latest
-
-      - name: Deploy kai-brain to Supabase
+      - name: Deploy kai-brain
         continue-on-error: true
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
           if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
-            echo "⚠ No SUPABASE_ACCESS_TOKEN — skipping. Add it in repo Settings > Secrets."
+            echo "⚠ No SUPABASE_ACCESS_TOKEN — skipping (already deployed via MCP)"
             exit 0
           fi
           supabase functions deploy kai-brain \
             --project-ref hpjvnohzhpkopisfaemz \
             --no-verify-jwt
-          echo "✓ kai-brain deployed to Supabase"
+          echo "✓ kai-brain deployed"
 
-      # ── Android APK Build ──────────────────────────────────────────────
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
+  build-apk:
+    runs-on: ubuntu-latest
+    needs: deploy-supabase
+    if: always()
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-node@v3
         with:
           node-version: '18'
 
-      - name: Setup Java
-        uses: actions/setup-java@v3
+      - uses: actions/setup-java@v3
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v2
+      - uses: android-actions/setup-android@v2
 
       - name: Install Cordova
         run: npm install -g cordova@12
 
-      - name: Install npm dependencies
-        run: |
-          [ -f package.json ] && npm install || true
+      - name: Install dependencies
+        run: '[ -f package.json ] && npm install || true'
 
       - name: Add Android platform
         run: cordova platform add android --save
@@ -60,17 +56,20 @@ jobs:
       - name: Build release APK
         run: cordova build android --release
 
-      - name: Sign and align APK
+      - name: Sign and zipalign APK
         run: |
           set -e
           APK_DIR="platforms/android/app/build/outputs/apk/release"
-          UNSIGNED="$APK_DIR/app-release-unsigned.apk"
-          SIGNED="$APK_DIR/kai.apk"
+          
+          # Find the APK (could be unsigned or already named differently)
+          UNSIGNED=$(find "$APK_DIR" -name "*unsigned*.apk" | head -1)
+          [ -z "$UNSIGNED" ] && UNSIGNED=$(find "$APK_DIR" -name "*.apk" ! -name "kai.apk" | head -1)
+          echo "Found APK: $UNSIGNED"
+          
           KS="$GITHUB_WORKSPACE/keystore/debug.keystore"
-
-          echo "=== Signing ==="
+          
+          # Sign in-place
           jarsigner \
-            -verbose \
             -sigalg SHA256withRSA \
             -digestalg SHA-256 \
             -keystore "$KS" \
@@ -78,22 +77,21 @@ jobs:
             -keypass android \
             "$UNSIGNED" \
             androiddebugkey
-
-          echo "=== Finding zipalign ==="
-          ZIPALIGN=$(find "$ANDROID_HOME/build-tools" -name zipalign | sort -V | tail -1)
+          echo "✓ signed"
+          
+          # zipalign: input and output MUST be different files
+          ZIPALIGN=$(find "$ANDROID_HOME/build-tools" -name "zipalign" -type f | sort -V | tail -1)
           echo "zipalign: $ZIPALIGN"
+          "$ZIPALIGN" -f -v 4 "$UNSIGNED" "$APK_DIR/kai.apk"
+          echo "✓ aligned"
+          ls -lh "$APK_DIR/kai.apk"
 
-          echo "=== Aligning ==="
-          "$ZIPALIGN" -v 4 "$UNSIGNED" "$SIGNED"
-          echo "✓ Done: $SIGNED"
-          ls -lh "$SIGNED"
-
-      - name: Get build tag from commit message
+      - name: Get release tag
         id: tag
         run: |
           MSG="${{ github.event.head_commit.message }}"
-          TAG=$(echo "$MSG" | grep -oP '(?i)(?<=build )[A-Z]+' | head -1 | tr '[:lower:]' '[:upper:]')
-          [ -z "$TAG" ] && TAG="BUILD-$(date +%Y%m%d-%H%M)"
+          TAG=$(echo "$MSG" | grep -oP '(?<=Build )[A-Z0-9]+' | head -1)
+          [ -z "$TAG" ] && TAG="$(date +%Y%m%d-%H%M)"
           echo "tag=$TAG" >> $GITHUB_OUTPUT
           echo "Tag: $TAG"
 
