@@ -1,4 +1,4 @@
-name: Build APK + Deploy Supabase
+name: Build KAI APK
 
 on:
   push:
@@ -12,13 +12,13 @@ jobs:
       - uses: supabase/setup-cli@v1
         with:
           version: latest
-      - name: Deploy kai-brain
+      - name: Deploy kai-brain edge function
         continue-on-error: true
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
           if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
-            echo "⚠ No SUPABASE_ACCESS_TOKEN — skipping (already deployed via MCP)"
+            echo "No SUPABASE_ACCESS_TOKEN — edge function already deployed via MCP connector"
             exit 0
           fi
           supabase functions deploy kai-brain \
@@ -47,8 +47,8 @@ jobs:
       - name: Install Cordova
         run: npm install -g cordova@12
 
-      - name: Install dependencies
-        run: '[ -f package.json ] && npm install || true'
+      - name: Install npm dependencies
+        run: '[ -f package.json ] && npm install || echo "no package.json"'
 
       - name: Add Android platform
         run: cordova platform add android --save
@@ -56,35 +56,61 @@ jobs:
       - name: Build release APK
         run: cordova build android --release
 
-      - name: Sign and zipalign APK
+      - name: Find, sign and publish APK
         run: |
           set -e
-          APK_DIR="platforms/android/app/build/outputs/apk/release"
-          
-          # Find the APK (could be unsigned or already named differently)
-          UNSIGNED=$(find "$APK_DIR" -name "*unsigned*.apk" | head -1)
-          [ -z "$UNSIGNED" ] && UNSIGNED=$(find "$APK_DIR" -name "*.apk" ! -name "kai.apk" | head -1)
-          echo "Found APK: $UNSIGNED"
-          
+
+          echo "=== All APKs produced ==="
+          find platforms/android -name "*.apk" 2>/dev/null | sort
+          echo "========================="
+
+          # Pick the unsigned release APK
+          UNSIGNED=$(find platforms/android -name "*unsigned*.apk" | head -1)
+          if [ -z "$UNSIGNED" ]; then
+            UNSIGNED=$(find platforms/android -name "*.apk" | grep -v "test\|Test" | head -1)
+          fi
+          echo "Signing: $UNSIGNED"
+          [ -z "$UNSIGNED" ] && echo "No APK found!" && exit 1
+
           KS="$GITHUB_WORKSPACE/keystore/debug.keystore"
-          
-          # Sign in-place
-          jarsigner \
-            -sigalg SHA256withRSA \
-            -digestalg SHA-256 \
-            -keystore "$KS" \
-            -storepass android \
-            -keypass android \
-            "$UNSIGNED" \
-            androiddebugkey
-          echo "✓ signed"
-          
-          # zipalign: input and output MUST be different files
-          ZIPALIGN=$(find "$ANDROID_HOME/build-tools" -name "zipalign" -type f | sort -V | tail -1)
-          echo "zipalign: $ZIPALIGN"
-          "$ZIPALIGN" -f -v 4 "$UNSIGNED" "$APK_DIR/kai.apk"
-          echo "✓ aligned"
-          ls -lh "$APK_DIR/kai.apk"
+          OUT="platforms/android/app/build/outputs/apk/release/kai.apk"
+          mkdir -p "$(dirname $OUT)"
+
+          # Use apksigner (comes with build-tools, handles sign+align in one step)
+          BT_VER=$(ls "$ANDROID_HOME/build-tools/" | sort -V | tail -1)
+          APKSIGNER="$ANDROID_HOME/build-tools/$BT_VER/apksigner"
+          echo "Using apksigner: $APKSIGNER (build-tools $BT_VER)"
+
+          if [ -f "$APKSIGNER" ]; then
+            echo "--- Using apksigner ---"
+            # apksigner can sign directly and outputs a signed file
+            "$APKSIGNER" sign \
+              --ks "$KS" \
+              --ks-pass pass:android \
+              --ks-key-alias androiddebugkey \
+              --key-pass pass:android \
+              --out "$OUT" \
+              "$UNSIGNED"
+            echo "✓ apksigner done"
+          else
+            echo "--- apksigner not found, falling back to jarsigner + zipalign ---"
+            jarsigner \
+              -sigalg SHA256withRSA \
+              -digestalg SHA-256 \
+              -keystore "$KS" \
+              -storepass android \
+              -keypass android \
+              "$UNSIGNED" androiddebugkey
+            echo "✓ jarsigner done"
+
+            ZIPALIGN=$(find "$ANDROID_HOME/build-tools" -name "zipalign" -type f | sort -V | tail -1)
+            echo "zipalign: $ZIPALIGN"
+            "$ZIPALIGN" -f 4 "$UNSIGNED" "$OUT"
+            echo "✓ zipalign done"
+          fi
+
+          echo "=== Final APK ==="
+          ls -lh "$OUT"
 
       - name: Get release tag
         id: tag
@@ -93,9 +119,9 @@ jobs:
           TAG=$(echo "$MSG" | grep -oP '(?<=Build )[A-Z0-9]+' | head -1)
           [ -z "$TAG" ] && TAG="$(date +%Y%m%d-%H%M)"
           echo "tag=$TAG" >> $GITHUB_OUTPUT
-          echo "Tag: $TAG"
+          echo "Release tag: $TAG"
 
-      - name: Publish GitHub Release
+      - name: Publish to GitHub Releases
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
