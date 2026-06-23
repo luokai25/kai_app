@@ -18,7 +18,7 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
           if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
-            echo "No SUPABASE_ACCESS_TOKEN — already deployed via MCP connector"
+            echo "No SUPABASE_ACCESS_TOKEN — already deployed via Supabase MCP"
             exit 0
           fi
           supabase functions deploy kai-brain \
@@ -32,13 +32,16 @@ jobs:
     if: always()
     steps:
       - uses: actions/checkout@v3
+
       - uses: actions/setup-node@v3
         with:
           node-version: '18'
+
       - uses: actions/setup-java@v3
         with:
           distribution: 'temurin'
           java-version: '17'
+
       - uses: android-actions/setup-android@v2
 
       - name: Install Cordova
@@ -50,23 +53,57 @@ jobs:
       - name: Add Android platform
         run: cordova platform add android --save
 
-      - name: Build and sign APK (via build.json)
-        run: |
-          # build.json in repo root tells Cordova to sign with our keystore
-          cordova build android --release -- --gradleArg="-PcdvBuildMultipleApks=false"
-          echo "=== APKs produced ==="
-          find platforms/android -name "*.apk" | sort
-          echo "====================="
+      - name: Build APK
+        run: cordova build android --release
 
-      - name: Locate and rename final APK
+      - name: Sign, align and package APK
         run: |
-          # Find the signed release APK (not unsigned)
-          FINAL=$(find platforms/android -name "*.apk" | grep -v "unsigned\|test\|Test" | head -1)
-          # Fallback: just take any APK
-          [ -z "$FINAL" ] && FINAL=$(find platforms/android -name "*.apk" | head -1)
-          echo "Final APK: $FINAL"
+          set -e
+
+          echo "=== Listing all APKs ==="
+          find platforms/android -name "*.apk" 2>/dev/null | sort || echo "No APKs found"
+          echo "========================"
+
+          # Pick unsigned APK (Cordova release without build.json produces this)
+          UNSIGNED=$(find platforms/android -name "*unsigned*.apk" 2>/dev/null | head -1)
+          # If no unsigned, pick any release APK
+          if [ -z "$UNSIGNED" ]; then
+            UNSIGNED=$(find platforms/android -name "*.apk" 2>/dev/null | grep -i "release" | head -1)
+          fi
+          # Last resort: any APK
+          if [ -z "$UNSIGNED" ]; then
+            UNSIGNED=$(find platforms/android -name "*.apk" 2>/dev/null | head -1)
+          fi
+
+          if [ -z "$UNSIGNED" ]; then
+            echo "ERROR: No APK found after build!"
+            ls -la platforms/android/app/build/outputs/ 2>/dev/null || echo "outputs dir missing"
+            exit 1
+          fi
+
+          echo "Using APK: $UNSIGNED"
+          KS="$GITHUB_WORKSPACE/keystore/debug.keystore"
+
+          # Sign with jarsigner
+          jarsigner \
+            -sigalg SHA256withRSA \
+            -digestalg SHA-256 \
+            -keystore "$KS" \
+            -storepass android \
+            -keypass android \
+            "$UNSIGNED" \
+            androiddebugkey
+          echo "✓ Signed"
+
+          # Verify signature
+          jarsigner -verify "$UNSIGNED" && echo "✓ Signature valid" || echo "⚠ Signature verify warning"
+
+          # zipalign to a new file (must be different path)
+          BT=$(ls "$ANDROID_HOME/build-tools/" | sort -V | tail -1)
+          ZIPALIGN="$ANDROID_HOME/build-tools/$BT/zipalign"
           mkdir -p out
-          cp "$FINAL" out/kai.apk
+          "$ZIPALIGN" -f -v 4 "$UNSIGNED" out/kai.apk
+          echo "✓ Aligned"
           ls -lh out/kai.apk
 
       - name: Get release tag
@@ -78,7 +115,7 @@ jobs:
           echo "tag=$TAG" >> $GITHUB_OUTPUT
           echo "Tag: $TAG"
 
-      - name: Publish to GitHub Releases
+      - name: Publish GitHub Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
