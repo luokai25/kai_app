@@ -183,6 +183,12 @@ html,body{height:100%;background:var(--bg);color:var(--ink);font-family:system-u
 .proj-dot.running{background:var(--good)}.proj-dot.done{background:#5c7cfa}.proj-dot.paused{background:#fab005}.proj-dot.error{background:var(--bad)}.proj-dot.idle{background:var(--dim)}
 .log-line{font-family:monospace;font-size:11px;padding:1px 0;color:var(--dim)}
 .log-line.step{color:var(--good)}.log-line.error{color:var(--bad)}.log-line.file{color:#74c0fc}
+
+  /* Self-mod panel */
+  .preset-btn{display:inline-block;padding:6px 10px;margin:3px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);color:var(--gold);font-size:12px;cursor:pointer;transition:all .12s}
+  .preset-btn:active{background:rgba(255,217,107,.15);border-color:var(--gold)}
+  #selfModOutput{display:none;background:#000;border-radius:10px;padding:10px 12px;margin:8px 14px;max-height:300px;overflow-y:auto;font-family:monospace;font-size:12px;line-height:1.5;border:1px solid var(--line)}
+  .self-mod-status{font-size:11px;color:var(--dim);padding:4px 14px}
 </style>
 </head>
 <body>
@@ -262,6 +268,7 @@ html,body{height:100%;background:var(--bg);color:var(--ink);font-family:system-u
   <div class="menu-row" id="goLessons"><span class="ic">🧠</span> What KAI learned</div>
   <div class="menu-row" id="goImageGen"><span class="ic">🎨</span> Generate image</div>
   <div class="menu-row" id="goReelGen"><span class="ic">🎬</span> Create reel</div>
+  <div class="menu-row" id="goSelfMod"><span class="ic">🔧</span> KAI Self-Modify</div>
   <div class="sec-label">Chats</div>
   <div class="panel-body" id="chatlist"></div>
 </div>
@@ -331,6 +338,48 @@ html,body{height:100%;background:var(--bg);color:var(--ink);font-family:system-u
   <div style="font-size:11px;color:var(--dim);padding:4px 14px 8px">Behavioral lessons from feedback &amp; self-eval. Shape every response.</div>
   <div class="panel-body" id="lessonsList" style="padding:0 8px"></div>
   <div class="btn-row"><button class="tm-btn" id="runSelfEval">▶ Run self-eval now</button></div>
+</div>
+
+
+<!-- SELF-MOD PANEL -->
+<div class="scrim" id="scrimX"></div>
+<div class="panel panel-right" id="panelX" style="overflow-y:auto">
+  <div class="panel-header">
+    <span class="panel-title">🔧 KAI Self-Modify</span>
+  </div>
+  <div style="padding:8px 14px;font-size:12px;color:var(--dim);line-height:1.6">
+    KAI can read his own code, plan changes, write fixes, and deploy — all autonomously.
+    He has full control over his own codebase.
+  </div>
+
+  <div class="sec-label">Quick Actions</div>
+  <div id="selfModPresets" style="padding:6px 14px 10px;display:flex;flex-wrap:wrap;gap:0"></div>
+
+  <div class="sec-label">Custom Task</div>
+  <div class="field">
+    <label>Tell KAI what to do to himself</label>
+    <textarea id="selfModTask" style="width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:10px;color:var(--ink);padding:10px 12px;font-size:14px;outline:none;font-family:inherit;min-height:80px;resize:vertical" placeholder="Add a weather widget to the home screen&#10;Fix the image generation error&#10;Add voice speed control&#10;Create a daily motivation feature that speaks to me every morning"></textarea>
+  </div>
+  <div class="btn-row">
+    <button class="tm-btn primary" id="selfModRun" onclick="kaiSelfAgent($('selfModTask').value)">▶ Run</button>
+    <button class="tm-btn" onclick="$('selfModTask').value='Introspect your own code and report any bugs, missing features, or improvements you would make to yourself.'">🔍 Inspect self</button>
+  </div>
+
+  <div id="selfModOutput"></div>
+
+  <div class="sec-label">Recent CI Builds</div>
+  <div id="selfModLog" style="flex:1;overflow-y:auto">
+    <div class="empty">Loading…</div>
+  </div>
+  <div class="btn-row">
+    <button class="tm-btn" onclick="loadSelfModPanel()">↻ Refresh</button>
+    <button class="tm-btn" onclick="kaiSelfAgent('Trigger a full APK rebuild so the latest version of yourself is compiled and published to GitHub Releases.')">🔨 Rebuild APK</button>
+  </div>
+
+  <div class="sec-label" style="margin-top:8px">Self-Modification Log</div>
+  <div class="self-mod-status" id="selfModCapabilities">
+    ✦ Read any file · Write any file · Deploy instantly · Run SQL · Trigger CI builds
+  </div>
 </div>
 
 <script src="app.js"></script>
