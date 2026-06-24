@@ -5,7 +5,7 @@
 const DEFAULT_SERVER = 'https://hpjvnohzhpkopisfaemz.supabase.co/functions/v1/kai-brain';
 const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhwanZub2h6aHBrb3Bpc2ZhZW16Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2MDU5NTcsImV4cCI6MjA5NjE4MTk1N30.f_FubOdzFCLejJGvf-1WNzRLhe__hKzoh2IX0NcDhqM';
 const DEFAULT_KAI_KEY = 'kai_Om34heIJMU5MIRTXaaeEiHIUzhvnPjXt';
-const BUILD_TAG = 'P';
+const BUILD_TAG = 'Q';
 const GH_REPO   = 'luokai25/kai_app';
 const GH_TOKEN  = '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';
 
@@ -475,7 +475,7 @@ async function send(){
 
 // ── panels ──────────────────────────────────────────────────────────────────
 function openP(scrim,panel){ closeAll(); $(scrim).classList.add('on'); $(panel).classList.add('on'); }
-function closeAll(){ ['scrimL','panelL','scrimS','panelS','scrimC','panelC','scrimN','panelN','scrimK','panelK'].forEach(id=>$(id)?.classList.remove('on')); }
+function closeAll(){ ['scrimL','panelL','scrimS','panelS','scrimC','panelC','scrimN','panelN','scrimK','panelK','scrimX','panelX'].forEach(id=>$(id)?.classList.remove('on')); }
 
 // ── lessons ─────────────────────────────────────────────────────────────────
 async function loadLessons(){
@@ -907,6 +907,121 @@ function toggleJarvis(){
 }
 
 // ── boot ────────────────────────────────────────────────────────────────────
+
+// ═══════════════════════════════════════════════════════════════════════════
+// KAI SELF-MODIFICATION — KAI can update himself, fix bugs, add features
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function loadSelfModPanel(){
+  const el = $('selfModLog');
+  if(!el) return;
+  try {
+    const logs = await api('/self/get-logs');
+    const runs = logs.runs || [];
+    el.innerHTML = runs.length ? runs.map(r=>`
+      <div style="padding:6px 10px;border-bottom:1px solid var(--line);font-size:12px">
+        <span style="color:${r.conclusion==='success'?'var(--good)':r.conclusion==='failure'?'var(--bad)':'var(--gold)'}">${r.conclusion==='success'?'✓':r.conclusion==='failure'?'✗':'…'}</span>
+        <span style="color:var(--dim);margin-left:6px">${(r.message||'').slice(0,50)}</span>
+        <div style="font-size:10px;color:var(--dim);margin-top:2px">${r.status} · ${r.created_at?.slice(0,16)||''}</div>
+      </div>`).join('')
+    : '<div class="empty">No CI runs yet.</div>';
+  } catch(e) {
+    if(el) el.innerHTML = `<div class="empty" style="color:var(--bad)">${esc(e.message)}</div>`;
+  }
+}
+
+async function kaiSelfAgent(task){
+  if(!task || !task.trim()) return;
+  if(!state.kaiKey){ alert('Set your KAI API key first'); return; }
+
+  const out = $('selfModOutput');
+  const btn = $('selfModRun');
+  if(out){ out.innerHTML = ''; out.style.display='block'; }
+  if(btn){ btn.disabled=true; btn.textContent='KAI working…'; }
+
+  // Also show in main chat
+  const localMsgs = currentChatId
+    ? ((await api('/messages?chat_id='+currentChatId).catch(()=>({messages:[]}))).messages||[])
+    : [];
+  localMsgs.push({role:'user', text:'🔧 '+task});
+  localMsgs.push({role:'kai', text:'🤖 KAI autonomous agent starting…', _streaming:true});
+  renderMessages(localMsgs);
+  closeAll();
+
+  try {
+    const headers = {
+      'Content-Type':'application/json',
+      'Authorization':'Bearer '+ANON_KEY,
+      'x-kai-key': state.kaiKey,
+    };
+    const res = await fetch(state.server+'/self/agent', {
+      method:'POST', headers,
+      body: JSON.stringify({ task, chat_id: currentChatId }),
+    });
+    if(!res.ok){
+      const err = await res.json().catch(()=>({}));
+      throw new Error(err.error || 'HTTP '+res.status);
+    }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '', accumulated = '';
+    while(true){
+      const {done, value} = await reader.read(); if(done) break;
+      buffer += decoder.decode(value, {stream:true});
+      const events = buffer.split('
+
+'); buffer = events.pop()||'';
+      for(const ev of events){
+        const line = ev.replace(/^data:\s*/,'').trim(); if(!line) continue;
+        try {
+          const e = JSON.parse(line);
+          if(e.type==='delta'){
+            accumulated += e.text;
+            if(out) out.innerHTML = `<pre style="white-space:pre-wrap;font-size:12px;color:var(--ink);margin:0">${esc(accumulated)}</pre>`;
+            localMsgs[localMsgs.length-1] = {role:'kai', text:accumulated, _streaming:true};
+            renderMessages(localMsgs);
+          } else if(e.type==='done'){
+            if(e.chat_id) currentChatId = e.chat_id;
+            localMsgs[localMsgs.length-1] = {role:'kai', text:e.reply||accumulated, meta:{tokens:e.tokens||0}};
+            renderMessages(localMsgs);
+            await loadChatList();
+            if(state.jarvisEnabled) jarvisSpeak('Self-modification complete.');
+          } else if(e.type==='error'){
+            throw new Error(e.error||'stream error');
+          }
+        } catch(pe){ if(pe.message&&!pe.message.includes('JSON')) throw pe; }
+      }
+    }
+  } catch(e){
+    const msg = '⚠ '+e.message;
+    if(out) out.innerHTML = `<div style="color:var(--bad);font-size:13px;padding:8px">${esc(msg)}</div>`;
+    localMsgs[localMsgs.length-1] = {role:'kai', text:msg};
+    renderMessages(localMsgs);
+  } finally {
+    if(btn){ btn.disabled=false; btn.textContent='▶ Run'; }
+  }
+}
+
+// Quick self-mod commands
+const SELF_MOD_PRESETS = [
+  { label:'🐛 Fix latest bug',      task:'Check your recent code for any bugs, logic errors, or issues. Fix them and deploy.' },
+  { label:'✨ Add dark mode toggle', task:'Add a dark/light mode toggle button to the UI that switches CSS color variables.' },
+  { label:'📊 Add typing indicator', task:'Add an animated typing indicator (three dots) that shows while KAI is thinking.' },
+  { label:'🔔 Add push notifications',task:'Add browser Web Push notification support so KAI can notify the user even when the app is in background.' },
+  { label:'⚡ Optimize performance', task:'Analyze the codebase for performance bottlenecks and optimize the most impactful ones.' },
+  { label:'🧹 Clean up UI',          task:'Review the index.html and app.js for any UI inconsistencies, fix them, and make the design cleaner.' },
+  { label:'📝 Add markdown export',  task:'Add a button to export the current chat as a formatted markdown file.' },
+  { label:'🌐 Add web search',       task:'Add a /search command that lets KAI search the web via a free search API and summarize results.' },
+];
+
+function renderSelfModPresets(){
+  const el = $('selfModPresets');
+  if(!el) return;
+  el.innerHTML = SELF_MOD_PRESETS.map(p=>`
+    <button class="preset-btn" onclick="$('selfModTask').value=${JSON.stringify(p.task)}">${esc(p.label)}</button>
+  `).join('');
+}
+
 function init(){
   if($('newChatTopBtn')) $('newChatTopBtn').onclick=newChat;
   if($('newChatBtn'))    $('newChatBtn').onclick=newChat;
@@ -917,12 +1032,13 @@ function init(){
   $('goLessons').onclick=()=>{openP('scrimK','panelK');loadLessons();};
   if($('runSelfEval')) $('runSelfEval').onclick=runSelfEvalNow;
   if($('goImageGen'))  $('goImageGen').onclick=()=>{closeAll();promptImageGen();};
+  if($('goSelfMod'))   $('goSelfMod').onclick=()=>{openP('scrimX','panelX');loadSelfModPanel();};
   if($('goReelGen'))   $('goReelGen').onclick=()=>{closeAll();promptReelGen();};
   if($('agentBtn'))    $('agentBtn').onclick=toggleAgentMode;
   if($('modelPill'))   $('modelPill').onclick=openModelPicker;
   if($('modelScrim'))  $('modelScrim').onclick=closeModelPicker;
   if($('jarvisToggle')) $('jarvisToggle').onclick=toggleJarvis;
-  ['scrimL','scrimS','scrimC','scrimN','scrimK'].forEach(id=>{if($(id)) $(id).onclick=closeAll;});
+  ['scrimL','scrimS','scrimC','scrimN','scrimK','scrimX'].forEach(id=>{if($(id)) $(id).onclick=closeAll;});
   if(!state.activeProvider) state.activeProvider='or_openrouter_free';
   $('saveKaiKey').onclick=saveKaiKey; $('testKey').onclick=testKey;
   $('saveKey').onclick=saveProviderKey; $('testProv').onclick=testProvider;
@@ -936,6 +1052,7 @@ function init(){
   $('input').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send();}});
   $('input').addEventListener('input',e=>{e.target.style.height='auto';e.target.style.height=Math.min(120,e.target.scrollHeight)+'px';});
   if('speechSynthesis' in window) speechSynthesis.onvoiceschanged=()=>{};
+  renderSelfModPresets();
   loadCurrentChat(); checkServer(); checkForAppUpdate();
   setTimeout(loadServerModels,3000);
   setTimeout(jarvisGreet,1500);
