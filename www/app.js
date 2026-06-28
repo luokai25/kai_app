@@ -5,7 +5,7 @@
 const DEFAULT_SERVER = 'https://hpjvnohzhpkopisfaemz.supabase.co/functions/v1/kai-brain';
 const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhwanZub2h6aHBrb3Bpc2ZhZW16Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2MDU5NTcsImV4cCI6MjA5NjE4MTk1N30.f_FubOdzFCLejJGvf-1WNzRLhe__hKzoh2IX0NcDhqM';
 const DEFAULT_KAI_KEY = 'kai_Om34heIJMU5MIRTXaaeEiHIUzhvnPjXt';
-const BUILD_TAG = 'Q';
+const BUILD_TAG = 'S';
 const GH_REPO   = 'luokai25/kai_app';
 const GH_TOKEN  = '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';
 
@@ -475,7 +475,7 @@ async function send(){
 
 // ── panels ──────────────────────────────────────────────────────────────────
 function openP(scrim,panel){ closeAll(); $(scrim).classList.add('on'); $(panel).classList.add('on'); }
-function closeAll(){ ['scrimL','panelL','scrimS','panelS','scrimC','panelC','scrimN','panelN','scrimK','panelK','scrimX','panelX'].forEach(id=>$(id)?.classList.remove('on')); }
+function closeAll(){ ['scrimL','panelL','scrimS','panelS','scrimC','panelC','scrimN','panelN','scrimK','panelK','scrimX','panelX','scrimE','panelE'].forEach(id=>$(id)?.classList.remove('on')); }
 
 // ── lessons ─────────────────────────────────────────────────────────────────
 async function loadLessons(){
@@ -1022,6 +1022,87 @@ function renderSelfModPresets(){
   `).join('');
 }
 
+
+// KAI AUTONOMOUS EVOLUTION — watch KAI improve himself in real time
+async function loadChangelog(){
+  const list=$('evolutionLog'); if(!list) return;
+  list.innerHTML='<div class="empty">Loading...</div>';
+  try{
+    const d=await api('/self/changelog');
+    const items=d.changelog||[];
+    if(!items.length){list.innerHTML='<div class="empty" style="padding:16px">KAI has not improved himself yet.<br>Tap Evolve Now to trigger one.</div>';return;}
+    list.innerHTML=items.map(item=>
+      `<div style="padding:10px 14px;border-bottom:1px solid var(--line)">
+        <div style="font-size:13px;font-weight:600;color:var(--ink)">${esc(item.changelog||item.idea||'')}</div>
+        <div style="font-size:11px;color:var(--dim);margin-top:3px">
+          ${esc(item.files_changed||'unknown')} &nbsp;·&nbsp;
+          ${item.deployed?'<span style="color:var(--good)">live</span>':'<span style="color:var(--gold)">pending</span>'}
+          &nbsp;·&nbsp; ${(item.created_at||'').slice(0,16)}
+        </div>
+      </div>`).join('');
+    const statusEl=$('evolutionStatus');
+    if(statusEl) statusEl.textContent=(d.evolution_count||0)+' self-improvements deployed';
+  }catch(e){if(list)list.innerHTML=`<div class="empty" style="color:var(--bad)">${esc(e.message)}</div>`;}
+}
+
+async function triggerEvolution(){
+  const btn=$('evolveBtn'); const out=$('evolutionOutput');
+  if(btn){btn.disabled=true; btn.textContent='KAI evolving...';}
+  if(out){out.style.display='block'; out.innerHTML='';}
+  const localMsgs=currentChatId?((await api('/messages?chat_id='+currentChatId).catch(()=>({messages:[]}))).messages||[]):[];
+  localMsgs.push({role:'user',text:'KAI autonomous evolution started'});
+  localMsgs.push({role:'kai',text:'KAI waking up to improve himself...', _streaming:true});
+  renderMessages(localMsgs);
+  closeAll();
+  try{
+    const headers={'Content-Type':'application/json','Authorization':'Bearer '+ANON_KEY,'x-kai-key':state.kaiKey};
+    const res=await fetch(state.server+'/self/evolve-stream',{method:'POST',headers,body:JSON.stringify({chat_id:currentChatId})});
+    if(!res.ok){const err=await res.json().catch(()=>({}));throw new Error(err.error||'HTTP '+res.status);}
+    const reader=res.body.getReader(); const decoder=new TextDecoder();
+    let buffer='',accumulated='';
+    while(true){
+      const{done,value}=await reader.read(); if(done)break;
+      buffer+=decoder.decode(value,{stream:true});
+      const events=buffer.split('\n\n'); buffer=events.pop()||'';
+      for(const ev of events){
+        const line=ev.replace(/^data:\s*/,'').trim(); if(!line)continue;
+        try{
+          const e=JSON.parse(line);
+          if(e.type==='delta'){
+            accumulated+=e.text;
+            if(out) out.innerHTML='<pre style="white-space:pre-wrap;font-size:12px;color:var(--ink);margin:0;padding:10px">'+esc(accumulated)+'</pre>';
+            localMsgs[localMsgs.length-1]={role:'kai',text:accumulated,_streaming:true};
+            renderMessages(localMsgs);
+          } else if(e.type==='done'){
+            if(e.chat_id) currentChatId=e.chat_id;
+            localMsgs[localMsgs.length-1]={role:'kai',text:e.reply||accumulated,meta:{tokens:e.tokens||0}};
+            renderMessages(localMsgs);
+            await loadChatList();
+            if(state.jarvisEnabled) jarvisSpeak('Evolution complete. KAI has improved himself.');
+            const evEl=$('evolutionStatus');
+            if(evEl) evEl.textContent=(e.evolution_count||0)+' self-improvements deployed';
+          } else if(e.type==='error'){throw new Error(e.error||'evolution error');}
+        }catch(pe){if(pe.message&&!pe.message.includes('JSON'))throw pe;}
+      }
+    }
+  }catch(e){
+    const msg='Evolution error: '+e.message;
+    if(out) out.innerHTML='<div style="color:var(--bad);padding:10px">'+esc(msg)+'</div>';
+    localMsgs[localMsgs.length-1]={role:'kai',text:msg};
+    renderMessages(localMsgs);
+  }finally{
+    if(btn){btn.disabled=false; btn.textContent='Evolve Now';}
+  }
+}
+
+function checkPingForEvolution(d){
+  const el=$('evolutionStatus'); if(!el) return;
+  const count=d.evolution_count||0;
+  const last=d.last_evolution&&d.last_evolution!=='never'?d.last_evolution.slice(0,16):'never';
+  el.textContent=count+' self-improvements · last: '+last;
+}
+
+
 function init(){
   if($('newChatTopBtn')) $('newChatTopBtn').onclick=newChat;
   if($('newChatBtn'))    $('newChatBtn').onclick=newChat;
@@ -1033,12 +1114,14 @@ function init(){
   if($('runSelfEval')) $('runSelfEval').onclick=runSelfEvalNow;
   if($('goImageGen'))  $('goImageGen').onclick=()=>{closeAll();promptImageGen();};
   if($('goSelfMod'))   $('goSelfMod').onclick=()=>{openP('scrimX','panelX');loadSelfModPanel();};
+  if($('goEvolution')) $('goEvolution').onclick=()=>{openP('scrimE','panelE');loadChangelog();};
+  if($('evolveBtn'))   $('evolveBtn').onclick=triggerEvolution;
   if($('goReelGen'))   $('goReelGen').onclick=()=>{closeAll();promptReelGen();};
   if($('agentBtn'))    $('agentBtn').onclick=toggleAgentMode;
   if($('modelPill'))   $('modelPill').onclick=openModelPicker;
   if($('modelScrim'))  $('modelScrim').onclick=closeModelPicker;
   if($('jarvisToggle')) $('jarvisToggle').onclick=toggleJarvis;
-  ['scrimL','scrimS','scrimC','scrimN','scrimK','scrimX'].forEach(id=>{if($(id)) $(id).onclick=closeAll;});
+  ['scrimL','scrimS','scrimC','scrimN','scrimK','scrimX','scrimE'].forEach(id=>{if($(id)) $(id).onclick=closeAll;});
   if(!state.activeProvider) state.activeProvider='or_openrouter_free';
   $('saveKaiKey').onclick=saveKaiKey; $('testKey').onclick=testKey;
   $('saveKey').onclick=saveProviderKey; $('testProv').onclick=testProvider;
