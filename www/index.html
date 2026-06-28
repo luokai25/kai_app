@@ -189,6 +189,10 @@ html,body{height:100%;background:var(--bg);color:var(--ink);font-family:system-u
   .preset-btn:active{background:rgba(255,217,107,.15);border-color:var(--gold)}
   #selfModOutput{display:none;background:#000;border-radius:10px;padding:10px 12px;margin:8px 14px;max-height:300px;overflow-y:auto;font-family:monospace;font-size:12px;line-height:1.5;border:1px solid var(--line)}
   .self-mod-status{font-size:11px;color:var(--dim);padding:4px 14px}
+
+  /* Evolution panel */
+  #evolutionOutput{display:none;background:#000;border-radius:10px;padding:0;margin:8px 14px;max-height:260px;overflow-y:auto;font-family:monospace;border:1px solid var(--line)}
+  .ev-stat{font-size:11px;color:var(--gold);padding:6px 14px;background:rgba(255,217,107,.06);border-bottom:1px solid var(--line)}
 </style>
 </head>
 <body>
@@ -269,6 +273,7 @@ html,body{height:100%;background:var(--bg);color:var(--ink);font-family:system-u
   <div class="menu-row" id="goImageGen"><span class="ic">🎨</span> Generate image</div>
   <div class="menu-row" id="goReelGen"><span class="ic">🎬</span> Create reel</div>
   <div class="menu-row" id="goSelfMod"><span class="ic">🔧</span> KAI Self-Modify</div>
+  <div class="menu-row" id="goEvolution"><span class="ic">🧬</span> KAI Evolution Log</div>
   <div class="sec-label">Chats</div>
   <div class="panel-body" id="chatlist"></div>
 </div>
@@ -379,6 +384,43 @@ html,body{height:100%;background:var(--bg);color:var(--ink);font-family:system-u
   <div class="sec-label" style="margin-top:8px">Self-Modification Log</div>
   <div class="self-mod-status" id="selfModCapabilities">
     ✦ Read any file · Write any file · Deploy instantly · Run SQL · Trigger CI builds
+  </div>
+</div>
+
+
+<!-- EVOLUTION PANEL — watch KAI improve himself -->
+<div class="scrim" id="scrimE"></div>
+<div class="panel panel-right" id="panelE" style="overflow-y:auto">
+  <div class="panel-header">
+    <span class="panel-title">🧬 KAI Evolution</span>
+  </div>
+  <div class="ev-stat" id="evolutionStatus">checking...</div>
+  <div style="padding:8px 14px;font-size:12px;color:var(--dim);line-height:1.6">
+    KAI picks an improvement from his idea bank, writes the code, deploys it, and logs it here —
+    all while you sleep. Tap <strong>Evolve Now</strong> to watch him build something new in real time.
+  </div>
+
+  <div class="btn-row">
+    <button class="tm-btn primary" id="evolveBtn">Evolve Now</button>
+    <button class="tm-btn" onclick="loadChangelog()">↻ Refresh</button>
+  </div>
+
+  <div id="evolutionOutput"></div>
+
+  <div class="sec-label">What KAI Has Built For Himself</div>
+  <div id="evolutionLog" style="flex:1;overflow-y:auto">
+    <div class="empty">Loading...</div>
+  </div>
+
+  <div class="sec-label" style="margin-top:8px">How It Works</div>
+  <div style="padding:8px 14px 16px;font-size:11px;color:var(--dim);line-height:1.7">
+    1. KAI reads his own 30-idea improvement bank<br>
+    2. Picks the most impactful idea not yet built<br>
+    3. Reads his current code to understand context<br>
+    4. Writes the implementation using LLM<br>
+    5. Patches and deploys himself instantly<br>
+    6. Triggers APK rebuild if client changes needed<br>
+    7. Logs the improvement here for you to see
   </div>
 </div>
 
