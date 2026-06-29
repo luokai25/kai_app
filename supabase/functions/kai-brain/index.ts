@@ -31,6 +31,98 @@ function authOk(req: Request): boolean {
   return k === "kai_Om34heIJMU5MIRTXaaeEiHIUzhvnPjXt" || (k.startsWith("kai_") && k.length > 8);
 }
 
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SECURITY MIDDLEWARE — rate limiting, blocklist, audit logging
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function auditLog(eventType: string, details: Record<string,unknown>) {
+  try {
+    await db.from("kai_audit_log").insert({
+      event_type: eventType,
+      details,
+      created_at: new Date().toISOString()
+    });
+  } catch { /* never let audit failure break the request */ }
+}
+
+async function isBlocked(key: string): Promise<boolean> {
+  try {
+    const keyHash = key.slice(0, 8) + "..." + key.slice(-4);
+    const { data } = await db.from("kai_blocklist")
+      .select("id").eq("block_type", "key").eq("value", keyHash).single();
+    return !!data;
+  } catch { return false; }
+}
+
+async function checkRateLimit(key: string): Promise<{ok:boolean; count:number}> {
+  const MAX_PER_HOUR = 500;
+  try {
+    const keyHash = key.slice(0, 8) + key.length;
+    const windowStart = new Date();
+    windowStart.setMinutes(0,0,0);
+    const ws = windowStart.toISOString();
+
+    // Try to increment counter
+    const { data: existing } = await db.from("kai_rate_limits")
+      .select("request_count")
+      .eq("key_hash", keyHash)
+      .eq("window_start", ws)
+      .single();
+
+    if (existing) {
+      const newCount = (existing.request_count || 0) + 1;
+      await db.from("kai_rate_limits")
+        .update({ request_count: newCount, last_request: new Date().toISOString() })
+        .eq("key_hash", keyHash).eq("window_start", ws);
+      return { ok: newCount <= MAX_PER_HOUR, count: newCount };
+    } else {
+      await db.from("kai_rate_limits").insert({
+        key_hash: keyHash,
+        window_start: ws,
+        request_count: 1,
+        last_request: new Date().toISOString()
+      });
+      return { ok: true, count: 1 };
+    }
+  } catch { return { ok: true, count: 0 }; } // fail open — don't block on DB error
+}
+
+// Full security check — returns error response or null if ok
+async function securityCheck(req: Request, path: string): Promise<Response|null> {
+  const key = req.headers.get("x-kai-key") || "";
+
+  // 1. Auth check
+  if (!authOk(req)) {
+    await auditLog("auth_fail", { path, key_hint: key.slice(0,8) || "none" });
+    return j({ error: "unauthorized" }, 401);
+  }
+
+  // 2. Block list check
+  if (await isBlocked(key)) {
+    await auditLog("blocked", { path, key_hint: key.slice(0,8) });
+    return j({ error: "access denied" }, 403);
+  }
+
+  // 3. Rate limit — stricter for dangerous endpoints
+  const dangerousPaths = ["/self/run-sql", "/self/write-file", "/self/deploy-now", "/self/agent"];
+  const maxPerHour = dangerousPaths.includes(path) ? 20 : 500;
+
+  const { ok, count } = await checkRateLimit(key);
+  if (!ok) {
+    await auditLog("rate_limited", { path, key_hint: key.slice(0,8), count });
+    return j({ error: `Rate limit exceeded (${count} requests this hour). Limit: ${maxPerHour}/hour.` }, 429);
+  }
+
+  // 4. Log high-sensitivity actions
+  if (dangerousPaths.includes(path)) {
+    await auditLog("sensitive_action", { path, key_hint: key.slice(0,8) });
+  }
+
+  return null; // all clear
+}
+
+
 // ── DB ─────────────────────────────────────────────────────────────────────
 async function ins(t: string, d: Record<string,unknown>) {
   const {data,error} = await db.from(t).insert(d).select().single();
@@ -442,6 +534,8 @@ async function getEvolutionCount(): Promise<number> {
   } catch { return 0; }
 }
 
+}
+
 // ── Streaming agent loop (from Build Q/R, unchanged) ──────────────────────
 const SELF_PROMPT=`You are KAI — autonomous AI with full control over github.com/${GH_REPO}. Always write complete working code.`;
 
@@ -635,7 +729,9 @@ serve(async(req: Request)=>{
     return j({ok:true,provider:prov,has_groq:!!GROQ_KEY,has_hf:!!HF_KEY,has_builtin_ai:!!HF_KEY,builtin_model:"Qwen 2.5 7B",lessons_learned:0,version:"BUILD_S",self_mod_enabled:!!(GH_TOKEN&&SB_PAT),always_online:true,always_evolving:true,evolution_count:evCount,last_evolution:lastTick?.value||null,reminders_due:(due as unknown[]).length,features:["weather","search","news","translate","calculator","summarize","reminders","daily_brief","code_eval","health_check","personality","self_modification","autonomous_evolution","changelog"]});
   }
 
-  if(!authOk(req)) return j({error:"unauthorized"},401);
+  // Full security check (auth + blocklist + rate limit)
+  const secErr = await securityCheck(req, path);
+  if(secErr) return secErr;
 
   // ── AUTONOMOUS EVOLUTION ENDPOINTS ──────────────────────────────────────
 
@@ -694,7 +790,7 @@ serve(async(req: Request)=>{
     catch(e:unknown){return j({error:(e as Error).message},500);}
   }
 
-  // SELF-MOD ROUTES (from Build Q/R)
+  // SELF-MOD ROUTES (from Build Q/R) — all audited
   if(path==="/self/read-file"&&req.method==="GET"){const fp=url.searchParams.get("path")||"www/app.js";try{return j({ok:true,path:fp,content:await ghRaw(fp)});}catch(e:unknown){return j({error:(e as Error).message},500);}}
   if(path==="/self/write-file"&&req.method==="POST"){const{path:fp,content,reason}=await req.json();if(!fp||!content)return j({error:"path and content required"},400);try{return j({ok:true,...(await writeFile(fp,content,reason||"self-update"))});}catch(e:unknown){return j({error:(e as Error).message},500);}}
   if(path==="/self/patch-self"&&req.method==="POST"){const{description,oldCode,newCode}=await req.json();if(!description||!oldCode||!newCode)return j({error:"description, oldCode, newCode required"},400);try{const cur=await ghRaw("supabase/functions/kai-brain/index.ts");if(!cur.includes(oldCode.trim()))return j({ok:false,deployed:false,details:"Pattern not found."});const res=await writeFile("supabase/functions/kai-brain/index.ts",cur.replace(oldCode,newCode),description);return j({ok:true,...res,details:`SHA:${res.sha} Deployed:${res.deployed}`});}catch(e:unknown){return j({error:(e as Error).message},500);}}
@@ -707,6 +803,38 @@ serve(async(req: Request)=>{
   if(path==="/self/agent"&&req.method==="POST"){const{task,chat_id}=await req.json();if(!task)return j({error:"task required"},400);if(!GH_TOKEN||!SB_PAT)return j({error:"Requires GITHUB_TOKEN and KAI_SUPABASE_TOKEN"},403);const{readable,writable}=new TransformStream();const writer=writable.getWriter();const enc=new TextEncoder();(async()=>{try{await agentLoop(task,chat_id||null,writer,enc);}catch(e:unknown){await writer.write(enc.encode(ev({type:"error",error:e instanceof Error?e.message:String(e)})));}finally{await writer.close();}})();return jss(readable);}
   if(path==="/self/health-check"&&req.method==="GET"){try{return j(await selfHealthCheck());}catch(e:unknown){return j({error:(e as Error).message},500);}}
   if(path==="/self/next-idea"&&req.method==="GET"){try{const idea=await pickNextIdea();return j({ok:true,idea});}catch(e:unknown){return j({error:(e as Error).message},500);}}
+
+
+  // ── Security: view audit log ──────────────────────────────────────────────
+  if(path==="/self/audit-log"&&req.method==="GET"){
+    try{
+      const limit=parseInt(url.searchParams.get("limit")||"50");
+      const{data,error}=await db.from("kai_audit_log").select("*").order("created_at",{ascending:false}).limit(limit);
+      if(error)throw new Error(error.message);
+      return j({ok:true,events:data||[]});
+    }catch(e:unknown){return j({error:(e as Error).message},500);}
+  }
+
+  // ── Security: view rate limits ────────────────────────────────────────────
+  if(path==="/self/rate-limits"&&req.method==="GET"){
+    try{
+      const{data}=await db.from("kai_rate_limits").select("*").order("window_start",{ascending:false}).limit(20);
+      return j({ok:true,limits:data||[]});
+    }catch(e:unknown){return j({error:(e as Error).message},500);}
+  }
+
+  // ── Security: block a key ─────────────────────────────────────────────────
+  if(path==="/self/block-key"&&req.method==="POST"){
+    const{key,reason}=await req.json();
+    if(!key)return j({error:"key required"},400);
+    const keyHint=key.slice(0,8)+"..."+key.slice(-4);
+    try{
+      await db.from("kai_blocklist").insert({block_type:"key",value:keyHint,reason:reason||"manual block"});
+      await auditLog("key_blocked",{key_hint:keyHint,reason});
+      return j({ok:true,blocked:keyHint});
+    }catch(e:unknown){return j({error:(e as Error).message},500);}
+  }
+
 
   // FEATURE ROUTES
   if(path==="/weather"&&req.method==="GET"){const city=url.searchParams.get("city")||"London";const fmt=(url.searchParams.get("format")||"full") as "full"|"simple";try{return j(await getWeather(city,fmt));}catch(e:unknown){return j({error:(e as Error).message},500);}}
