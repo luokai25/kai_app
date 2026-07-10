@@ -855,28 +855,36 @@ serve(async(req: Request)=>{
 
   // STANDARD CHAT
   if(path==="/chat/stream"&&req.method==="POST"){
-    const{text,chat_id,image_urls}=await req.json();
-    const routed=await routeCommand(text,chat_id||null).catch(()=>({handled:false}));
-    if(routed.handled){
-      const reply=formatCommandResult(routed.result as Record<string,unknown>);
-      let sid=chat_id||null;
-      try{if(!sid){const c=await ins("kai_chats",{title:text.slice(0,60)||"Chat"});sid=c.id;}await insQ("kai_messages",{chat_id:sid,role:"user",content:text});await insQ("kai_messages",{chat_id:sid,role:"assistant",content:reply});}catch{}
-      const{readable:rd,writable:wr}=new TransformStream();const ww=wr.getWriter();const ee=new TextEncoder();
-      await ww.write(ee.encode(ev({type:"chat_id",chat_id:sid})));await ww.write(ee.encode(ev({type:"delta",text:reply})));await ww.write(ee.encode(ev({type:"done",reply,tokens:Math.round(reply.length/4),chat_id:sid})));await ww.close();
-      return jss(rd);
-    }
-    const prov=await getProvider(); let sid=chat_id||null;
-    try{if(!sid){const c=await ins("kai_chats",{title:(text||" ").slice(0,60)});sid=c.id;}await insQ("kai_messages",{chat_id:sid,role:"user",content:text});}catch{}
-    const history:M[]=[];
     try{
-      const personality=await getPersonality();
-      const{data}=await db.from("kai_messages").select("role,content").eq("chat_id",sid).order("created_at").limit(20);
-      history.push({role:"system",content:personality});
-      (data||[]).slice(-16).forEach((r:Record<string,string>)=>history.push({role:r.role==="assistant"?"assistant":"user",content:r.content}));
-    }catch{history.push({role:"user",content:text});}
-    if(image_urls?.length)history[history.length-1].content+=`\n\n[Images: ${image_urls.join(", ")}]`;
-    if(prov.startsWith("local_"))return j({type:"local_inference",provider:prov,messages:history,chat_id:sid});
-    return streamChat(history,sid,prov);
+      const body=await req.json().catch(()=>({}));
+      const text=body.text||""; const chat_id=body.chat_id||null; const image_urls=body.image_urls;
+      if(!text||!text.trim()) return j({error:"text is required"},400);
+      const routed=await routeCommand(text,chat_id||null).catch((e:unknown)=>({handled:false,_err:e}));
+      if(routed.handled){
+        const reply=formatCommandResult(routed.result as Record<string,unknown>);
+        let sid=chat_id||null;
+        try{if(!sid){const c=await ins("kai_chats",{title:text.slice(0,60)||"Chat"});sid=c.id;}await insQ("kai_messages",{chat_id:sid,role:"user",content:text});await insQ("kai_messages",{chat_id:sid,role:"assistant",content:reply});}catch{}
+        const{readable:rd,writable:wr}=new TransformStream();const ww=wr.getWriter();const ee=new TextEncoder();
+        await ww.write(ee.encode(ev({type:"chat_id",chat_id:sid})));await ww.write(ee.encode(ev({type:"delta",text:reply})));await ww.write(ee.encode(ev({type:"done",reply,tokens:Math.round(reply.length/4),chat_id:sid})));await ww.close();
+        return jss(rd);
+      }
+      const prov=await getProvider(); let sid=chat_id||null;
+      try{if(!sid){const c=await ins("kai_chats",{title:(text||" ").slice(0,60)});sid=c.id;}await insQ("kai_messages",{chat_id:sid,role:"user",content:text});}catch(e){console.error("save user msg:",e);}
+      const history:M[]=[];
+      try{
+        const personality=await getPersonality();
+        const{data,error}=await db.from("kai_messages").select("role,content").eq("chat_id",sid).order("created_at").limit(20);
+        if(error) console.error("history fetch error:",error);
+        history.push({role:"system",content:personality});
+        (data||[]).slice(-16).forEach((r:Record<string,string>)=>history.push({role:r.role==="assistant"?"assistant":"user",content:r.content}));
+      }catch(e){console.error("history build error:",e);history.push({role:"user",content:text});}
+      if(image_urls?.length)history[history.length-1].content+=`\n\n[Images: ${image_urls.join(", ")}]`;
+      if(prov.startsWith("local_"))return j({type:"local_inference",provider:prov,messages:history,chat_id:sid});
+      return streamChat(history,sid,prov);
+    }catch(e:unknown){
+      console.error("chat/stream fatal:",e);
+      return j({error:e instanceof Error?e.message:"chat/stream failed",detail:String(e)},500);
+    }
   }
 
   if(path==="/chat/local-result"&&req.method==="POST"){const{chat_id,reply,tokens}=await req.json();try{await insQ("kai_messages",{chat_id,role:"assistant",content:reply});}catch{}return j({ok:true,chat_id,tokens});}
