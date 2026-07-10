@@ -79,6 +79,7 @@ jobs:
           cordova plugin add cordova-plugin-android-permissions || true
           cordova plugin add cordova-plugin-file || true
           cordova plugin add cordova-plugin-inappbrowser || true
+          cordova plugin add ../plugins/cordova-plugin-kai-gemma || true
           cordova build android --debug -- --packageType=apk
 
       - name: Sign and align APK
@@ -98,7 +99,7 @@ jobs:
             --v1-signing-enabled true \
             --v2-signing-enabled true \
             --v3-signing-enabled true \
-            --min-sdk-version 22 \
+            --min-sdk-version 26 \
             --out KAI.apk \
             aligned.apk
           ls -lh KAI.apk
