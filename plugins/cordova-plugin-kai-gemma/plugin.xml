@@ -1,0 +1,34 @@
+<?xml version='1.0' encoding='utf-8'?>
+<plugin xmlns="http://apache.org/cordova/ns/plugins/1.0"
+        id="cordova-plugin-kai-gemma"
+        version="1.0.0">
+    <name>KaiGemmaLocal</name>
+    <description>On-device Gemma 4 E2B inference for KAI via MediaPipe LLM Inference API (LiteRT-LM)</description>
+    <license>Apache 2.0</license>
+
+    <js-module src="www/kai-gemma-local.js" name="KaiGemmaLocal">
+        <clobbers target="cordova.plugins.KaiGemmaLocal" />
+    </js-module>
+
+    <platform name="android">
+        <config-file target="res/xml/config.xml" parent="/*">
+            <feature name="KaiGemmaLocal">
+                <param name="android-package" value="com.kai.gemma.KaiGemmaLocal" />
+            </feature>
+        </config-file>
+
+        <config-file target="AndroidManifest.xml" parent="/*">
+            <uses-permission android:name="android.permission.INTERNET" />
+        </config-file>
+
+        <!-- GradlePluginKotlinEnabled required for Kotlin plugin sources on cordova-android 9+ -->
+        <config-file target="config.xml" parent="/*">
+            <preference name="GradlePluginKotlinEnabled" value="true" />
+        </config-file>
+
+        <!-- Pulls MediaPipe GenAI (tasks-genai) from Maven automatically during Gradle build -->
+        <framework src="com.google.mediapipe:tasks-genai:0.10.27" />
+
+        <source-file src="src/android/KaiGemmaLocal.kt" target-dir="src/com/kai/gemma" />
+    </platform>
+</plugin>
