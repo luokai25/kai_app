@@ -11,7 +11,9 @@
     <preference name="DisallowOverscroll" value="true" />
     <preference name="BackgroundColor" value="0xff0f0e0c" />
     <preference name="Orientation" value="portrait" />
-    <preference name="android-minSdkVersion" value="22" />
+    <preference name="android-minSdkVersion" value="26" />
+    <preference name="GradlePluginKotlinEnabled" value="true" />
+    <preference name="GradlePluginKotlinCodeStyle" value="official" />
     <preference name="AndroidInsecureFileModeEnabled" value="true" />
     <platform name="android">
         <preference name="AndroidWindowSplashScreenBackground" value="#0f0e0c" />
