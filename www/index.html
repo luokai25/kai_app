@@ -204,6 +204,7 @@ html,body{height:100%;background:var(--bg);color:var(--ink);font-family:system-u
   <div class="menu-row" id="goReelGen"><span class="ic">🎬</span> Create reel</div>
   <div class="menu-row" id="goSelfMod"><span class="ic">🔧</span> KAI Self-Modify</div>
   <div class="menu-row" id="goEvolution"><span class="ic">🧬</span> KAI Evolution Log</div>
+  <div class="menu-row" id="goGemmaLocal"><span class="ic">📱</span> On-Device Model (Gemma)</div>
 </div>
 
 <!-- RIGHT: setup -->
@@ -324,6 +325,21 @@ html,body{height:100%;background:var(--bg);color:var(--ink);font-family:system-u
   <div id="evolutionOutput"></div>
   <div class="sec-label">What KAI Has Built For Himself</div>
   <div id="evolutionLog" style="flex:1;overflow-y:auto"><div class="empty">Loading…</div></div>
+</div>
+
+
+<!-- LOCAL GEMMA MODEL PANEL -->
+<div class="scrim" id="scrimG"></div>
+<div class="panel panel-right" id="panelG" style="overflow-y:auto">
+  <div class="panel-header">
+    <span class="panel-title">📱 On-Device Model</span>
+    <button class="panel-close" onclick="document.getElementById('scrimG').click()">✕</button>
+  </div>
+  <div style="padding:8px 14px;font-size:12px;color:var(--dim);line-height:1.6">
+    Gemma-4-E2B-it runs entirely on your device — no internet needed once downloaded.
+    KAI checks your device's thermal state before every response to avoid overheating it.
+  </div>
+  <div id="gemmaPanel"><div class="empty">Loading…</div></div>
 </div>
 
 <script src="app.js"></script>
