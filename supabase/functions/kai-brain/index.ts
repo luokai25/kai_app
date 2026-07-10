@@ -719,7 +719,9 @@ function formatCommandResult(result: Record<string,unknown>): string {
 serve(async(req: Request)=>{
   if(req.method==="OPTIONS") return new Response("ok",{headers:CORS});
   const url=new URL(req.url);
-  const path=url.pathname.replace(/^\/functions\/v1\/kai-brain/,"").replace(/\/$/,"")||"";
+  let path=url.pathname;
+  path=path.replace(/^\/functions\/v1\/kai-brain/,"").replace(/^\/kai-brain/,"").replace(/\/$/,"")||"";
+  if(!path.startsWith("/"))path="/"+path;
 
   // ── Ping ──────────────────────────────────────────────────────────────────
   if(path==="/ping"){
@@ -894,27 +896,26 @@ serve(async(req: Request)=>{
   if(path==="/self-eval"&&req.method==="POST") return j({ok:true});
   if(path==="/models"&&req.method==="GET") return j({models:[]});
   if(path==="/benchmark"&&req.method==="POST"){
-  const ALL_PROVIDERS=["or_openrouter_free","or_qwen3_coder","or_nemotron550b","or_gptoss120b","or_llama70b","or_gemma31b","or_kimi","or_qwen80b","or_hermes405b","or_llama3b","or_dolphin","or_lfm_think","github_gpt4o","github_gpt4omini","github_llama405b","github_llama8b","groq","kai_builtin"];
-  const results:Array<{provider:string;status:string;reply?:string;error?:string;latency_ms:number}>=[];
-  for(const p of ALL_PROVIDERS){
-    const t0=Date.now();
-    try{
-      const r=await chat([{role:"user",content:"Reply with exactly: OK"}],p,false) as string;
-      const latency=Date.now()-t0;
-      const ok=!!r && r.length>0;
-      results.push({provider:p,status:ok?"ok":"empty_reply",reply:r.slice(0,60),latency_ms:latency});
-      try{await insQ("kai_model_pings",{provider_id:p,status:ok?"ok":"empty_reply",reply_snippet:r.slice(0,100),latency_ms:latency});}catch{}
-    }catch(e:unknown){
-      const latency=Date.now()-t0;
-      const msg=e instanceof Error?e.message:String(e);
-      results.push({provider:p,status:"error",error:msg,latency_ms:latency});
-      try{await insQ("kai_model_pings",{provider_id:p,status:"error",error:msg,latency_ms:latency});}catch{}
+    const ALL_PROVIDERS=["or_openrouter_free","or_qwen3_coder","or_nemotron550b","or_gptoss120b","or_llama70b","or_gemma31b","or_kimi","or_qwen80b","or_hermes405b","or_llama3b","or_dolphin","or_lfm_think","github_gpt4o","github_gpt4omini","github_llama405b","github_llama8b","groq","kai_builtin"];
+    const results:Array<{provider:string;status:string;reply?:string;error?:string;latency_ms:number}>=[];
+    for(const p of ALL_PROVIDERS){
+      const t0=Date.now();
+      try{
+        const r=await chat([{role:"user",content:"Reply with exactly: OK"}],p,false) as string;
+        const latency=Date.now()-t0;
+        const ok=!!r && r.length>0;
+        results.push({provider:p,status:ok?"ok":"empty_reply",reply:r.slice(0,60),latency_ms:latency});
+        try{await insQ("kai_model_pings",{provider_id:p,status:ok?"ok":"empty_reply",reply_snippet:r.slice(0,100),latency_ms:latency});}catch{}
+      }catch(e:unknown){
+        const latency=Date.now()-t0;
+        const msg=e instanceof Error?e.message:String(e);
+        results.push({provider:p,status:"error",error:msg,latency_ms:latency});
+        try{await insQ("kai_model_pings",{provider_id:p,status:"error",error:msg,latency_ms:latency});}catch{}
+      }
     }
+    const working=results.filter(r=>r.status==="ok");
+    return j({ok:true,tested:results.length,working:working.length,failing:results.length-working.length,results,best:working[0]?.provider||"or_openrouter_free"});
   }
-  const working=results.filter(r=>r.status==="ok");
-  const failing=results.filter(r=>r.status!=="ok");
-  return j({ok:true,tested:results.length,working:working.length,failing:failing.length,results,best:working[0]?.provider||"or_openrouter_free"});
-}
   if(path==="/set-key"&&req.method==="POST"){const{provider:prov}=await req.json();try{const{error}=await db.from("kai_settings").upsert({key:"active_provider",value:prov},{onConflict:"key"});if(error)throw new Error(error.message);return j({ok:true,provider:prov});}catch(e:unknown){return j({error:(e as Error).message},500);}}
   if(path==="/test-provider"&&req.method==="POST"){const{provider:prov}=await req.json();try{const r=await chat([{role:"user",content:"Say OK"}],prov,false) as string;return j({ok:true,provider:prov,reply:r.slice(0,100),model:prov});}catch(e:unknown){return j({ok:false,provider:prov,error:(e as Error).message});}}
   if(path==="/projects"&&req.method==="GET"){try{const{data}=await db.from("kai_projects").select("*").order("created_at",{ascending:false}).limit(20);return j({projects:data||[]});}catch{return j({projects:[]});}}
