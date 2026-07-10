@@ -264,6 +264,13 @@ async function send(){
   localMsgs.push({role:'kai', text:'…', _streaming:true});
   renderMessages(localMsgs);
 
+  // Local on-device Gemma routing — bypasses network entirely
+  if(state.activeProvider === 'local_gemma4e2b'){
+    try { await sendLocalGemma(text, localMsgs, pidx); }
+    finally { set('sendBtn', el => el.disabled = false); clearImages(); }
+    return;
+  }
+
   try {
     // Agentic mode
     if(agentMode){
@@ -349,7 +356,7 @@ async function send(){
 }
 
 // ── Panels ────────────────────────────────────────────────────────────────────
-const PANELS = ['scrimL','panelL','scrimS','panelS','scrimC','panelC','scrimN','panelN','scrimK','panelK','scrimX','panelX','scrimE','panelE'];
+const PANELS = ['scrimL','panelL','scrimS','panelS','scrimC','panelC','scrimN','panelN','scrimK','panelK','scrimX','panelX','scrimE','panelE','scrimG','panelG'];
 function closeAll(){ PANELS.forEach(id => $(id)?.classList.remove('on')); }
 function openP(scrim, panel){ closeAll(); $(scrim)?.classList.add('on'); $(panel)?.classList.add('on'); }
 
@@ -373,6 +380,7 @@ const MODELS = [
   {id:'github_llama8b',     name:'Llama 3.1 8B',        icon:'🐙', source:'GitHub Models'},
   {id:'groq',               name:'Llama 70B (Groq)',    icon:'⚡', source:'Groq'},
   {id:'kai_builtin',        name:'Qwen 2.5 7B',         icon:'✦',  source:'HF Inference'},
+  {id:'local_gemma4e2b',    name:'Gemma-4-E2B-it (local model)', icon:'📱', source:'On-Device'},
 ];
 
 function getCurrentModel(){
@@ -400,7 +408,7 @@ function renderModelPicker(pingData){
 
   const grouped = {};
   MODELS.forEach(m => { if(!grouped[m.source]) grouped[m.source]=[]; grouped[m.source].push(m); });
-  const order = ['OpenRouter Free','GitHub Models','HF Inference','Groq'];
+  const order = ['On-Device','OpenRouter Free','GitHub Models','HF Inference','Groq'];
 
   dd.innerHTML = '<div class="md-handle"></div>';
   order.forEach(src => {
@@ -424,10 +432,17 @@ function renderModelPicker(pingData){
 
 async function selectModel(id){
   closeModelPicker();
+  const switchingAway = state.activeProvider === 'local_gemma4e2b' && id !== 'local_gemma4e2b';
   state.activeProvider = id;
   save();
   updateModelPill();
   wireQuickChips();
+  if(switchingAway) unloadGemmaModel();
+  if(id === 'local_gemma4e2b'){
+    const m = MODELS.find(x => x.id === id);
+    setStatus((m?m.name:'Model') + ' · on-device', true, false);
+    return;
+  }
   try { await api('/set-key', {method:'POST', body:{provider:id}}); }
   catch(e) { console.warn('set-key failed:', e.message); }
   if(lastPingData){ lastPingData.provider = id; }
@@ -891,6 +906,152 @@ async function runSelfEvalNow(){
 }
 
 // ── INIT — fully defensive, every element access guarded ─────────────────────
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LOCAL GEMMA 4 E2B — on-device inference via KaiGemmaLocal native plugin
+// Thermal-safety-first: never generates without checking device temperature.
+// ═══════════════════════════════════════════════════════════════════════════
+let gemmaLocalState = { downloaded: false, loaded: false, backend: null, downloading: false };
+const GEMMA_MODEL_URL = 'https://huggingface.co/litert-community/Gemma3-1B-it/resolve/main/gemma-4-e2b-it.task';
+
+function gemmaAvailable(){
+  return typeof cordova !== 'undefined' && cordova.plugins && cordova.plugins.KaiGemmaLocal;
+}
+
+async function checkGemmaStatus(){
+  if(!gemmaAvailable()) return {supported:false, reason:'Plugin not available — rebuild the app with the local model plugin included.'};
+  try {
+    const avail = await cordova.plugins.KaiGemmaLocal.isAvailable();
+    const dl = await cordova.plugins.KaiGemmaLocal.isModelDownloaded();
+    gemmaLocalState.downloaded = dl.downloaded;
+    return { supported:true, ...avail, ...dl };
+  } catch(e) {
+    return { supported:false, reason: e.message||String(e) };
+  }
+}
+
+async function checkGemmaThermal(){
+  if(!gemmaAvailable()) return { safe_to_generate:false, status:'unavailable' };
+  try { return await cordova.plugins.KaiGemmaLocal.getThermalStatus(); }
+  catch(e) { return { safe_to_generate:false, status:'error', error:e.message }; }
+}
+
+async function downloadGemmaModel(onProgress){
+  if(!gemmaAvailable()) throw new Error('Plugin not available');
+  gemmaLocalState.downloading = true;
+  try {
+    const result = await cordova.plugins.KaiGemmaLocal.downloadModel(GEMMA_MODEL_URL, onProgress);
+    gemmaLocalState.downloaded = true;
+    return result;
+  } finally {
+    gemmaLocalState.downloading = false;
+  }
+}
+
+async function loadGemmaModel(backend){
+  if(!gemmaAvailable()) throw new Error('Plugin not available');
+  // Thermal pre-check — refuse to load if device already running warm
+  const thermal = await checkGemmaThermal();
+  if(thermal.supported !== false && thermal.safe_to_generate === false){
+    throw new Error(`Device is running warm (${thermal.status}). Let it cool down before loading the local model.`);
+  }
+  const result = await cordova.plugins.KaiGemmaLocal.loadModel(backend||'cpu');
+  gemmaLocalState.loaded = true;
+  gemmaLocalState.backend = result.backend;
+  return result;
+}
+
+async function unloadGemmaModel(){
+  if(!gemmaAvailable()) return;
+  try { await cordova.plugins.KaiGemmaLocal.unloadModel(); } catch{}
+  gemmaLocalState.loaded = false;
+}
+
+// Called from send() when local_gemma4e2b is the active provider
+async function sendLocalGemma(text, localMsgs, pidx){
+  // Thermal check on EVERY generation, not just at load
+  const thermal = await checkGemmaThermal();
+  if(thermal.supported !== false && thermal.safe_to_generate === false){
+    localMsgs[pidx] = {role:'kai', text:`⚠ Device is running warm (${thermal.status}). Pausing local generation to protect your device — try again once it cools down, or switch to a cloud model.`};
+    renderMessages(localMsgs);
+    return;
+  }
+  if(!gemmaLocalState.loaded){
+    localMsgs[pidx] = {role:'kai', text:'⏳ Loading Gemma model into memory…', _streaming:true};
+    renderMessages(localMsgs);
+    try { await loadGemmaModel('cpu'); }
+    catch(e){ localMsgs[pidx] = {role:'kai', text:'⚠ '+e.message}; renderMessages(localMsgs); return; }
+  }
+  try {
+    let acc = '';
+    await cordova.plugins.KaiGemmaLocal.generate(text, (delta, accumulated) => {
+      acc = accumulated;
+      localMsgs[pidx] = {role:'kai', text:acc, _streaming:true};
+      renderMessages(localMsgs);
+    });
+    localMsgs[pidx] = {role:'kai', text:acc, meta:{tokens:Math.round(acc.length/4), local:true}};
+    renderMessages(localMsgs);
+    if(state.jarvisEnabled) jarvisSpeak(acc);
+    // Save to server DB for history even though inference was local
+    try {
+      if(!currentChatId){ const c = await api('/chats'); }
+      await api('/chat/local-result', {method:'POST', body:{chat_id:currentChatId, reply:acc, tokens:Math.round(acc.length/4)}});
+    } catch {}
+  } catch(e){
+    localMsgs[pidx] = {role:'kai', text:'⚠ Local generation failed: '+e.message};
+    renderMessages(localMsgs);
+  }
+}
+
+function renderGemmaPanel(){
+  const el = $('gemmaPanel');
+  if(!el) return;
+  if(!gemmaAvailable()){
+    el.innerHTML = '<div class="empty">Local model plugin not present in this build. Rebuild the app to enable on-device Gemma.</div>';
+    return;
+  }
+  el.innerHTML = '<div class="empty">Checking status…</div>';
+  checkGemmaStatus().then(status => {
+    let html = '';
+    if(!status.meets_ram_requirement){
+      html += `<div style="padding:10px 14px;color:var(--bad);font-size:12px">⚠ This device has ${status.ram_mb}MB RAM — Gemma 4 E2B recommends 4096MB+. It may run slowly or fail to load.</div>`;
+    }
+    if(status.downloaded){
+      html += `<div style="padding:10px 14px;font-size:13px">✓ Model downloaded (${status.size_mb}MB)</div>`;
+      html += `<div class="btn-row"><button class="tm-btn" onclick="loadGemmaModel(\'cpu\').then(()=>renderGemmaPanel())">Load (CPU — safest)</button></div>`;
+      html += `<div class="btn-row"><button class="tm-btn" onclick="loadGemmaModel(\'gpu\').then(()=>renderGemmaPanel())">Load (GPU — faster, more heat)</button></div>`;
+      html += `<div class="btn-row"><button class="tm-btn" style="color:var(--bad)" onclick="cordova.plugins.KaiGemmaLocal.deleteModel().then(()=>renderGemmaPanel())">Delete model (free ${status.size_mb}MB)</button></div>`;
+    } else {
+      html += `<div style="padding:10px 14px;font-size:12px;color:var(--dim)">Model not downloaded yet. Size: ~2.6GB. Recommend WiFi only.</div>`;
+      html += `<div class="btn-row"><button class="tm-btn primary" id="gemmaDownloadBtn">Download model (WiFi recommended)</button></div>`;
+      html += `<div id="gemmaProgress" style="padding:0 14px;font-size:12px;color:var(--gold)"></div>`;
+    }
+    html += `<div class="sec-label">Thermal status</div><div id="gemmaThermal" style="padding:0 14px 10px;font-size:12px;color:var(--dim)">checking…</div>`;
+    el.innerHTML = html;
+    checkGemmaThermal().then(t => {
+      const te = $('gemmaThermal');
+      if(te) te.innerHTML = t.supported===false
+        ? `<span style="color:var(--dim)">${esc(t.status||'unavailable')} — ${esc(t.note||'')}</span>`
+        : `<span style="color:${t.safe_to_generate?'var(--good)':'var(--bad)'}">${esc(t.status)} ${t.safe_to_generate?'— safe to run':'— device warm, generation paused for safety'}</span>`;
+    });
+    const dlBtn = $('gemmaDownloadBtn');
+    if(dlBtn) dlBtn.onclick = async () => {
+      dlBtn.disabled = true; dlBtn.textContent = 'Downloading…';
+      try {
+        await downloadGemmaModel(p => {
+          const pe = $('gemmaProgress');
+          if(pe) pe.textContent = `${p.percent}% — ${p.downloaded_mb}MB / ${p.total_mb}MB`;
+        });
+        renderGemmaPanel();
+      } catch(e){
+        dlBtn.disabled = false; dlBtn.textContent = 'Download failed — retry';
+        alert('Download failed: '+e.message);
+      }
+    };
+  });
+}
+
+
 function init(){
   // New chat buttons
   on('newChatTopBtn','click', newChat);
@@ -915,9 +1076,10 @@ function init(){
   on('goReelGen',  'click', ()=>{ closeAll(); promptReelGen(); });
   on('goSelfMod',  'click', ()=>{ openP('scrimX','panelX'); loadSelfModPanel(); });
   on('goEvolution','click', ()=>{ openP('scrimE','panelE'); loadChangelog(); });
+  on('goGemmaLocal','click', ()=>{ openP('scrimG','panelG'); renderGemmaPanel(); });
 
   // Scrims close everything
-  ['scrimL','scrimS','scrimC','scrimN','scrimK','scrimX','scrimE'].forEach(id => on(id,'click',closeAll));
+  ['scrimL','scrimS','scrimC','scrimN','scrimK','scrimX','scrimE','scrimG'].forEach(id => on(id,'click',closeAll));
 
   // Model picker
   on('modelPill',  'click', openModelPicker);
