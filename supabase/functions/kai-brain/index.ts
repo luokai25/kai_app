@@ -205,6 +205,7 @@ async function streamChat(msgs: M[], chatId: string|null, prov?: string): Promis
   const w = writable.getWriter(); const e = new TextEncoder();
   (async()=>{
     try {
+      await w.write(e.encode(ev({type:"chat_id",chat_id:chatId})));
       const up = await chat(msgs,prov,true) as Response;
       if(!up.ok){await w.write(e.encode(ev({type:"error",error:await up.text()})));await w.close();return;}
       const r = up.body!.getReader(); const d = new TextDecoder();
@@ -873,8 +874,6 @@ serve(async(req: Request)=>{
     }catch{history.push({role:"user",content:text});}
     if(image_urls?.length)history[history.length-1].content+=`\n\n[Images: ${image_urls.join(", ")}]`;
     if(prov.startsWith("local_"))return j({type:"local_inference",provider:prov,messages:history,chat_id:sid});
-    const{readable:rd,writable:wr}=new TransformStream();const ww=wr.getWriter();const ee=new TextEncoder();
-    await ww.write(ee.encode(ev({type:"chat_id",chat_id:sid})));await ww.close();
     return streamChat(history,sid,prov);
   }
 
