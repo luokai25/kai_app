@@ -27,7 +27,7 @@
         </config-file>
 
         <!-- Pulls MediaPipe GenAI (tasks-genai) from Maven automatically during Gradle build -->
-        <framework src="com.google.mediapipe:tasks-genai:0.10.27" />
+        <framework src="com.google.mediapipe:tasks-genai:0.10.24" />
 
         <source-file src="src/android/KaiGemmaLocal.kt" target-dir="src/com/kai/gemma" />
     </platform>
