@@ -1,0 +1,15 @@
+{
+  "name": "cordova-plugin-kai-gemma",
+  "version": "1.0.0",
+  "description": "On-device Gemma 4 E2B inference for KAI via MediaPipe LLM Inference API",
+  "cordova": {
+    "id": "cordova-plugin-kai-gemma",
+    "platforms": ["android"]
+  },
+  "keywords": ["ecosystem:cordova", "cordova-android"],
+  "engines": [
+    { "name": "cordova-android", "version": ">=9.0.0" }
+  ],
+  "author": "KAI",
+  "license": "Apache-2.0"
+}
