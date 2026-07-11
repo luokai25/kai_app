@@ -1,2 +1,2 @@
-2026-07-11T06:06:59.661668
-Clean retry - confirmed JDK21+Gradle8.9 fix is on main
+2026-07-11T06:15:01.580343
+Force JDK21 explicitly + diagnostics
