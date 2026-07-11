@@ -67,9 +67,28 @@ jobs:
           echo "/opt/gradle-8.7/bin" >> $GITHUB_PATH
           echo "GRADLE_HOME=/opt/gradle-8.7" >> $GITHUB_ENV
 
+      - name: Diagnose Java environment
+        run: |
+          echo "=== java -version ==="
+          java -version
+          echo "=== JAVA_HOME ==="
+          echo "$JAVA_HOME"
+          echo "=== which java ==="
+          which java
+          echo "=== JAVA_HOME_21_X64 (if set) ==="
+          echo "${JAVA_HOME_21_X64:-not set}"
+          echo "=== PATH ==="
+          echo "$PATH"
+
       - name: Build APK
         run: |
           set -e
+          echo "=== Java version at build time ==="
+          java -version
+          export JAVA_HOME="${JAVA_HOME_21_X64:-$JAVA_HOME}"
+          export PATH="$JAVA_HOME/bin:$PATH"
+          echo "=== Forced JAVA_HOME: $JAVA_HOME ==="
+          java -version
           cordova create build com.kai.app KAI
           rm -rf build/www
           cp -r www build/www
