@@ -103,6 +103,16 @@ jobs:
           echo "distributionPath=wrapper/dists" >> platforms/android/gradle/wrapper/gradle-wrapper.properties
           echo "zipStoreBase=GRADLE_USER_HOME" >> platforms/android/gradle/wrapper/gradle-wrapper.properties
           echo "zipStorePath=wrapper/dists" >> platforms/android/gradle/wrapper/gradle-wrapper.properties
+          # Disable Jetifier: it exists only to rewrite legacy android.support.*
+          # references into AndroidX. All our plugins (file, inappbrowser,
+          # android-permissions, kai-gemma) are already AndroidX-native, so
+          # Jetifier has nothing legitimate to transform — but it still tries
+          # to parse every AAR including tasks-genai's, whose bytecode (Java 21
+          # class file major version 65) its transformer can't read, crashing
+          # the whole build with "Unsupported class file major version 65".
+          # Turning it off skips that broken, unnecessary transform entirely.
+          echo "android.enableJetifier=false" >> platforms/android/gradle.properties
+          echo "android.useAndroidX=true" >> platforms/android/gradle.properties
           cordova plugin add cordova-plugin-android-permissions || true
           cordova plugin add cordova-plugin-file || true
           cordova plugin add cordova-plugin-inappbrowser || true
