@@ -131,26 +131,7 @@ jobs:
             echo "Build APK step failed before log file was created" > "$LOGFILE"
           fi
           tail -c 60000 "$LOGFILE" > /tmp/build-tail.log
-          python3 - <<'PYEOF'
-import base64, json, urllib.request, os
-token = os.environ["GH_TOKEN"]
-content = open("/tmp/build-tail.log","rb").read()
-b64 = base64.b64encode(content).decode()
-url = "https://api.github.com/repos/luokai25/kai_app/contents/ci-debug/latest.log"
-req = urllib.request.Request(url, headers={"Authorization": f"token {token}", "User-Agent":"ci", "Content-Type":"application/json"})
-sha = None
-try:
-    r = urllib.request.urlopen(urllib.request.Request(url + "?ref=ci-logs", headers={"Authorization": f"token {token}", "User-Agent":"ci"}))
-    sha = json.loads(r.read())["sha"]
-except Exception as e:
-    print("no existing file:", e)
-payload = {"message": "ci: build log " + os.environ.get("GITHUB_RUN_ID",""), "content": b64, "branch": "ci-logs"}
-if sha:
-    payload["sha"] = sha
-req2 = urllib.request.Request(url, data=json.dumps(payload).encode(), headers={"Authorization": f"token {token}", "User-Agent":"ci", "Content-Type":"application/json"}, method="PUT")
-resp = urllib.request.urlopen(req2)
-print(resp.status)
-PYEOF
+          python3 scripts/upload_log.py
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
