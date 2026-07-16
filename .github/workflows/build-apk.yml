@@ -99,6 +99,10 @@ jobs:
           cp config.xml build/config.xml
           cd build
           cordova platform add android@12
+          echo "=== DEBUG: platforms/android/cordova contents right after platform add ==="
+          ls -la platforms/android/cordova/ || echo "cordova/ dir MISSING"
+          echo "=== DEBUG: config.xml plugin entries ==="
+          grep -i plugin config.xml || echo "no plugin entries in config.xml"
           # cordova-android@12 bundles its own Gradle wrapper (7.6) which can't
           # parse Java 21 bytecode (e.g. from MediaPipe tasks-genai). Override
           # it to Gradle 8.7+ which supports both JDK 21 and toolchain compilation.
@@ -118,7 +122,9 @@ jobs:
           # Turning it off skips that broken, unnecessary transform entirely.
           echo "android.enableJetifier=false" >> platforms/android/gradle.properties
           echo "android.useAndroidX=true" >> platforms/android/gradle.properties
-          cordova plugin add cordova-plugin-android-permissions || true
+          echo "=== DEBUG: platforms/android/cordova contents right before explicit plugin add ==="
+          ls -la platforms/android/cordova/ || echo "cordova/ dir MISSING at this point"
+          cordova plugin add cordova-plugin-android-permissions --verbose || true
           cordova plugin add cordova-plugin-file || true
           cordova plugin add cordova-plugin-inappbrowser || true
           cordova plugin add ../plugins/cordova-plugin-kai-gemma
