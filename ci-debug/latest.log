@@ -35,8 +35,12 @@ node_modules/cordova-android/framework/gradle/wrapper
 node_modules/cordova-android/templates/cordova/version
 node_modules/cordova-android/templates/cordova/Api.js
 node_modules/cordova-android/lib/Api.js
+No scripts found for hook "before_platform_add".
 Using cordova-fetch for cordova-android@12
+fetch: Installing cordova-android@12 to /home/runner/work/kai_app/kai_app
+Removing "cordova-" prefix from cordova-android
 Adding android project...
+Loaded API for android project /home/runner/work/kai_app/kai_app/node_modules/cordova-android
 Creating Cordova project for the Android platform:
 	Path: platforms/android
 	Package: com.kai.app
@@ -44,43 +48,121 @@ Creating Cordova project for the Android platform:
 	Activity: MainActivity
 	Android Target SDK: android-33
 	Android Compile SDK: 33
+Copying android template project to platforms/android
+[Cordova Gradle Config] Setting "PACKAGE_NAMESPACE" to com.kai.app
+[Cordova Gradle Config] Saving File
 Subproject Path: CordovaLib
 Subproject Path: app
 Android project created with cordova-android@12.0.1
+Loaded API for android project /home/runner/work/kai_app/kai_app/platforms/android/cordova/Api.js
+Generating platform-specific config.xml from defaults for android at /home/runner/work/kai_app/kai_app/platforms/android/app/src/main/res/xml/config.xml
+Merging project's config.xml into platform-specific android config.xml
+[Gradle Properties] Preparing Configuration
+[Gradle Properties] File missing, creating file with Cordova defaults.
+[Gradle Properties] Appending default configuration properties
+[Gradle Properties] Appending configuration item: org.gradle.jvmargs=-Xmx2048m
+[Gradle Properties] Appending configuration item: android.useAndroidX=true
+[Gradle Properties] Appending configuration item: android.enableJetifier=true
+[Gradle Properties] Appending custom configuration properties
+[Gradle Properties] Appending configuration item: kotlin.code.style=official
+[Gradle Properties] Updating and Saving File
+Merging and updating files from [www, platforms/android/platform_www] to platforms/android/app/src/main/assets/www
+  copy  www/app.js platforms/android/app/src/main/assets/www/app.js (new file)
+  copy  www/app.js.bak platforms/android/app/src/main/assets/www/app.js.bak (new file)
+  copy  platforms/android/platform_www/cordova.js platforms/android/app/src/main/assets/www/cordova.js (updated file)
+  delete platforms/android/app/src/main/assets/www/css (no source)
+  delete platforms/android/app/src/main/assets/www/css/index.css (no source)
+  delete platforms/android/app/src/main/assets/www/img (no source)
+  delete platforms/android/app/src/main/assets/www/img/cordova.png (no source)
+  delete platforms/android/app/src/main/assets/www/img/logo.png (no source)
+  copy  www/index.html platforms/android/app/src/main/assets/www/index.html (updated file)
+  delete platforms/android/app/src/main/assets/www/js (no source)
+  delete platforms/android/app/src/main/assets/www/js/index.js (no source)
+Wrote out android application name "KAI" to /home/runner/work/kai_app/kai_app/platforms/android/app/src/main/res/values/strings.xml
+The "AndroidWindowSplashScreenAnimatedIcon" is undefined. Cordova's default will be used.
+Wrote out Android application SplashScreen Color to /home/runner/work/kai_app/kai_app/platforms/android/app/src/main/res/values/colors.xml
+The "AndroidWindowSplashScreenBrandingImage" is undefined. Cordova's default will be used.
+Wrote out Android application SplashScreen Icon Color to /home/runner/work/kai_app/kai_app/platforms/android/app/src/main/res/values/colors.xml
+Wrote out Android application themes to /home/runner/work/kai_app/kai_app/platforms/android/app/src/main/res/values/themes.xml
+[Cordova Gradle Config] Setting "PACKAGE_NAMESPACE" to com.kai.app
+[Cordova Gradle Config] Saving File
+android-versionCode not found in config.xml. Generating a code based on version in config.xml (1.0.0): 10000
+This app does not have launcher icons defined
+This app does not have additional resource files defined
+Prepared android project successfully
+Installing plugin "cordova-plugin-kai-gemma" following successful platform add of android
 Installing "cordova-plugin-kai-gemma" for android
+Finding scripts for "before_plugin_install" hook from plugin cordova-plugin-kai-gemma on android platform only.
+No scripts found for hook "before_plugin_install".
+Install start for "cordova-plugin-kai-gemma" on android.
+Beginning processing of action stack for android project...
+Installing Android library: com.google.mediapipe:tasks-genai:0.10.24
+Action stack processing complete.
+Updating build files since android plugin contained <framework>
 Subproject Path: CordovaLib
 Subproject Path: app
+Install complete for cordova-plugin-kai-gemma on android.
+Finding scripts for "after_plugin_install" hook from plugin cordova-plugin-kai-gemma on android platform only.
+No scripts found for hook "after_plugin_install".
+No scripts found for hook "before_prepare".
+Checking for saved platforms that haven't been added to the project
+Checking for saved plugins that haven't been added to the project
+Generating platform-specific config.xml from defaults for android at /home/runner/work/kai_app/kai_app/platforms/android/app/src/main/res/xml/config.xml
+Merging project's config.xml into platform-specific android config.xml
+[Gradle Properties] Preparing Configuration
+[Gradle Properties] Appending default configuration properties
+[Gradle Properties] Appending custom configuration properties
+[Gradle Properties] Updating and Saving File
+Merging and updating files from [www, platforms/android/platform_www] to platforms/android/app/src/main/assets/www
+  copy  platforms/android/platform_www/cordova_plugins.js platforms/android/app/src/main/assets/www/cordova_plugins.js (updated file)
+  copy  platforms/android/platform_www/plugins/cordova-plugin-kai-gemma/www/kai-gemma-local.js platforms/android/app/src/main/assets/www/plugins/cordova-plugin-kai-gemma/www/kai-gemma-local.js (updated file)
+Wrote out android application name "KAI" to /home/runner/work/kai_app/kai_app/platforms/android/app/src/main/res/values/strings.xml
+The "AndroidWindowSplashScreenAnimatedIcon" is undefined. Cordova's default will be used.
+Wrote out Android application SplashScreen Color to /home/runner/work/kai_app/kai_app/platforms/android/app/src/main/res/values/colors.xml
+The "AndroidWindowSplashScreenBrandingImage" is undefined. Cordova's default will be used.
+Wrote out Android application SplashScreen Icon Color to /home/runner/work/kai_app/kai_app/platforms/android/app/src/main/res/values/colors.xml
+Wrote out Android application themes to /home/runner/work/kai_app/kai_app/platforms/android/app/src/main/res/values/themes.xml
+[Cordova Gradle Config] Setting "PACKAGE_NAMESPACE" to com.kai.app
+[Cordova Gradle Config] Saving File
+android-versionCode not found in config.xml. Generating a code based on version in config.xml (1.0.0): 10000
+This app does not have launcher icons defined
+This app does not have additional resource files defined
+Prepared android project successfully
+No scripts found for hook "after_prepare".
+Saving android@12.0.1 into platforms.json
+adding android to cordova.platforms array in package.json
+No scripts found for hook "after_platform_add".
 === DEBUG: platforms/android/cordova contents right after platform add ===
 ls: cannot access 'platforms/android/cordova/': No such file or directory
 cordova/ dir MISSING
 === WORKAROUND: manually copying platform scripts ===
 Found source dir: node_modules/cordova-android/templates/cordova
 total 28
-drwxr-xr-x 3 runner runner 4096 Jul 16 19:56 .
-drwxr-xr-x 3 runner runner 4096 Jul 16 19:56 ..
--rw-r--r-- 1 runner runner  862 Jul 16 19:56 Api.js
--rwxr-xr-x 1 runner runner 1058 Jul 16 19:56 android_sdk_version
--rw-r--r-- 1 runner runner 1038 Jul 16 19:56 defaults.xml
-drwxr-xr-x 2 runner runner 4096 Jul 16 19:56 lib
--rwxr-xr-x 1 runner runner  940 Jul 16 19:56 version
+drwxr-xr-x 3 runner runner 4096 Jul 16 20:00 .
+drwxr-xr-x 3 runner runner 4096 Jul 16 20:00 ..
+-rw-r--r-- 1 runner runner  862 Jul 16 20:00 Api.js
+-rwxr-xr-x 1 runner runner 1058 Jul 16 20:00 android_sdk_version
+-rw-r--r-- 1 runner runner 1038 Jul 16 20:00 defaults.xml
+drwxr-xr-x 2 runner runner 4096 Jul 16 20:00 lib
+-rwxr-xr-x 1 runner runner  940 Jul 16 20:00 version
 === DEBUG: platforms/android/cordova contents right after platform add ===
 total 28
-drwxr-xr-x 3 runner runner 4096 Jul 16 19:56 .
-drwxr-xr-x 3 runner runner 4096 Jul 16 19:56 ..
--rw-r--r-- 1 runner runner  862 Jul 16 19:56 Api.js
--rwxr-xr-x 1 runner runner 1058 Jul 16 19:56 android_sdk_version
--rw-r--r-- 1 runner runner 1038 Jul 16 19:56 defaults.xml
-drwxr-xr-x 2 runner runner 4096 Jul 16 19:56 lib
--rwxr-xr-x 1 runner runner  940 Jul 16 19:56 version
+drwxr-xr-x 3 runner runner 4096 Jul 16 20:00 .
+drwxr-xr-x 3 runner runner 4096 Jul 16 20:00 ..
+-rw-r--r-- 1 runner runner  862 Jul 16 20:00 Api.js
+-rwxr-xr-x 1 runner runner 1058 Jul 16 20:00 android_sdk_version
+-rw-r--r-- 1 runner runner 1038 Jul 16 20:00 defaults.xml
+drwxr-xr-x 2 runner runner 4096 Jul 16 20:00 lib
+-rwxr-xr-x 1 runner runner  940 Jul 16 20:00 version
 === DEBUG: platforms/android/cordova contents right before explicit plugin add ===
 total 28
-drwxr-xr-x 3 runner runner 4096 Jul 16 19:56 .
-drwxr-xr-x 4 runner runner 4096 Jul 16 19:56 ..
--rw-r--r-- 1 runner runner  862 Jul 16 19:56 Api.js
--rwxr-xr-x 1 runner runner 1058 Jul 16 19:56 android_sdk_version
--rw-r--r-- 1 runner runner 1038 Jul 16 19:56 defaults.xml
-drwxr-xr-x 2 runner runner 4096 Jul 16 19:56 lib
--rwxr-xr-x 1 runner runner  940 Jul 16 19:56 version
+drwxr-xr-x 3 runner runner 4096 Jul 16 20:00 .
+drwxr-xr-x 4 runner runner 4096 Jul 16 20:00 ..
+-rw-r--r-- 1 runner runner  862 Jul 16 20:00 Api.js
+-rwxr-xr-x 1 runner runner 1058 Jul 16 20:00 android_sdk_version
+-rw-r--r-- 1 runner runner 1038 Jul 16 20:00 defaults.xml
+drwxr-xr-x 2 runner runner 4096 Jul 16 20:00 lib
+-rwxr-xr-x 1 runner runner  940 Jul 16 20:00 version
 No scripts found for hook "before_plugin_add".
 No version specified for cordova-plugin-android-permissions, retrieving version from config.xml
 No version for cordova-plugin-android-permissions saved in config.xml or package.json
