@@ -1,1 +1,25 @@
-Build APK step failed before log file was created
+=== Java version at build time ===
+openjdk version "21.0.11" 2026-04-21 LTS
+OpenJDK Runtime Environment Temurin-21.0.11+10 (build 21.0.11+10-LTS)
+OpenJDK 64-Bit Server VM Temurin-21.0.11+10 (build 21.0.11+10-LTS, mixed mode, sharing)
+=== Forced JAVA_HOME: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/21.0.11-10/x64 ===
+openjdk version "21.0.11" 2026-04-21 LTS
+OpenJDK Runtime Environment Temurin-21.0.11+10 (build 21.0.11+10-LTS)
+OpenJDK 64-Bit Server VM Temurin-21.0.11+10 (build 21.0.11+10-LTS, mixed mode, sharing)
+Creating a new cordova project.
+Using cordova-fetch for cordova-android@12
+Adding android project...
+Creating Cordova project for the Android platform:
+	Path: platforms/android
+	Package: com.kai.app
+	Name: KAI
+	Activity: MainActivity
+	Android Target SDK: android-33
+	Android Compile SDK: 33
+Subproject Path: CordovaLib
+Subproject Path: app
+Android project created with cordova-android@12.0.1
+Installing "cordova-plugin-kai-gemma" for android
+Subproject Path: CordovaLib
+Subproject Path: app
+/home/runner/work/_temp/03497e05-fe77-43d8-9021-b8ef32bae290.sh: line 19: platforms/android/gradle/wrapper/gradle-wrapper.properties: No such file or directory
