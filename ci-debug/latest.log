@@ -22,4 +22,44 @@ Android project created with cordova-android@12.0.1
 Installing "cordova-plugin-kai-gemma" for android
 Subproject Path: CordovaLib
 Subproject Path: app
-/home/runner/work/_temp/03497e05-fe77-43d8-9021-b8ef32bae290.sh: line 19: platforms/android/gradle/wrapper/gradle-wrapper.properties: No such file or directory
+Installing "cordova-plugin-android-permissions" for android
+Failed to install 'cordova-plugin-android-permissions': CordovaError: Could not load API for android project /home/runner/work/kai_app/kai_app/build/platforms/android/cordova/Api.js
+    at Object.getPlatformApiFunction (/opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/cordova/util.js:324:19)
+    at Object.getPlatformApi (/opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/platforms/index.js:55:34)
+    at handleInstall (/opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/plugman/install.js:551:29)
+    at /opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/plugman/install.js:335:28
+Could not load API for android project /home/runner/work/kai_app/kai_app/build/platforms/android/cordova/Api.js
+Unmet project requirements for latest version of cordova-plugin-file:
+    cordova-android (broken in project, >=12.0.0 required)
+Fetching highest version of cordova-plugin-file that this project supports: 4.3.3 (latest is 8.1.3)
+Installing "cordova-plugin-file" for android
+Installing "cordova-plugin-compat" for android
+cordova-android version not detected (lacks script /home/runner/work/kai_app/kai_app/build/platforms/android/cordova/version ), continuing.
+Failed to install 'cordova-plugin-compat': CordovaError: Could not load API for android project /home/runner/work/kai_app/kai_app/build/platforms/android/cordova/Api.js
+    at Object.getPlatformApiFunction (/opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/cordova/util.js:324:19)
+    at Object.getPlatformApi (/opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/platforms/index.js:55:34)
+    at handleInstall (/opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/plugman/install.js:551:29)
+    at /opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/plugman/install.js:335:28
+Failed to install 'cordova-plugin-file': CordovaError: Could not load API for android project /home/runner/work/kai_app/kai_app/build/platforms/android/cordova/Api.js
+    at Object.getPlatformApiFunction (/opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/cordova/util.js:324:19)
+    at Object.getPlatformApi (/opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/platforms/index.js:55:34)
+    at handleInstall (/opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/plugman/install.js:551:29)
+    at /opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/plugman/install.js:335:28
+Could not load API for android project /home/runner/work/kai_app/kai_app/build/platforms/android/cordova/Api.js
+Unmet project requirements for latest version of cordova-plugin-inappbrowser:
+    cordova-android (broken in project, >=10.0.0 required)
+Fetching highest version of cordova-plugin-inappbrowser that this project supports: 4.1.0 (latest is 7.0.0)
+Installing "cordova-plugin-inappbrowser" for android
+Failed to install 'cordova-plugin-inappbrowser': CordovaError: Could not load API for android project /home/runner/work/kai_app/kai_app/build/platforms/android/cordova/Api.js
+    at Object.getPlatformApiFunction (/opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/cordova/util.js:324:19)
+    at Object.getPlatformApi (/opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/platforms/index.js:55:34)
+    at handleInstall (/opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/plugman/install.js:551:29)
+    at /opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/plugman/install.js:335:28
+Could not load API for android project /home/runner/work/kai_app/kai_app/build/platforms/android/cordova/Api.js
+Installing "cordova-plugin-kai-gemma" for android
+Failed to install 'cordova-plugin-kai-gemma': CordovaError: Could not load API for android project /home/runner/work/kai_app/kai_app/build/platforms/android/cordova/Api.js
+    at Object.getPlatformApiFunction (/opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/cordova/util.js:324:19)
+    at Object.getPlatformApi (/opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/platforms/index.js:55:34)
+    at handleInstall (/opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/plugman/install.js:551:29)
+    at /opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/plugman/install.js:335:28
+Could not load API for android project /home/runner/work/kai_app/kai_app/build/platforms/android/cordova/Api.js
