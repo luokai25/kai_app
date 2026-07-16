@@ -102,6 +102,7 @@ jobs:
           # cordova-android@12 bundles its own Gradle wrapper (7.6) which can't
           # parse Java 21 bytecode (e.g. from MediaPipe tasks-genai). Override
           # it to Gradle 8.7+ which supports both JDK 21 and toolchain compilation.
+          mkdir -p platforms/android/gradle/wrapper
           echo "distributionUrl=https\://services.gradle.org/distributions/gradle-8.9-all.zip" > platforms/android/gradle/wrapper/gradle-wrapper.properties
           echo "distributionBase=GRADLE_USER_HOME" >> platforms/android/gradle/wrapper/gradle-wrapper.properties
           echo "distributionPath=wrapper/dists" >> platforms/android/gradle/wrapper/gradle-wrapper.properties
