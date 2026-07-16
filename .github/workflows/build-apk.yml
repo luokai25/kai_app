@@ -99,10 +99,23 @@ jobs:
           cp config.xml build/config.xml
           cd build
           npm install --no-save --no-audit --no-fund cordova-android@12.0.1
-          echo "=== DEBUG: cordova-android package contents ==="
-          ls -la node_modules/cordova-android/ || echo "MISSING package dir"
-          ls -la node_modules/cordova-android/cordova-js-src/ 2>&1 | head -20
-          cordova platform add "$(pwd)/node_modules/cordova-android"
+          echo "=== DEBUG: cordova-android package layout ==="
+          find node_modules/cordova-android -maxdepth 3 -type d
+          echo "=== DEBUG: searching for Api.js and version script in package ==="
+          find node_modules/cordova-android -iname "Api.js" -o -iname "version"
+          cordova platform add android@12
+          echo "=== DEBUG: platforms/android/cordova contents right after platform add ==="
+          ls -la platforms/android/cordova/ 2>&1 || echo "cordova/ dir MISSING"
+          if [ ! -d platforms/android/cordova ]; then
+            echo "=== WORKAROUND: manually copying platform scripts ==="
+            SRC_DIR=$(find node_modules/cordova-android -type d -name cordova | grep -v node_modules/cordova-android/node_modules | head -1)
+            echo "Found source dir: $SRC_DIR"
+            if [ -n "$SRC_DIR" ]; then
+              mkdir -p platforms/android/cordova
+              cp -r "$SRC_DIR"/* platforms/android/cordova/
+              ls -la platforms/android/cordova/
+            fi
+          fi
           echo "=== DEBUG: platforms/android/cordova contents right after platform add ==="
           ls -la platforms/android/cordova/ || echo "cordova/ dir MISSING"
           # cordova-android@12 bundles its own Gradle wrapper (7.6) which can't
