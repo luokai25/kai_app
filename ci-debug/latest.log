@@ -7,124 +7,13 @@ openjdk version "21.0.11" 2026-04-21 LTS
 OpenJDK Runtime Environment Temurin-21.0.11+10 (build 21.0.11+10-LTS)
 OpenJDK 64-Bit Server VM Temurin-21.0.11+10 (build 21.0.11+10-LTS, mixed mode, sharing)
 Creating a new cordova project.
-Using cordova-fetch for cordova-android@12
-Adding android project...
-Creating Cordova project for the Android platform:
-	Path: platforms/android
-	Package: com.kai.app
-	Name: KAI
-	Activity: MainActivity
-	Android Target SDK: android-33
-	Android Compile SDK: 33
-Subproject Path: CordovaLib
-Subproject Path: app
-Android project created with cordova-android@12.0.1
-Installing "cordova-plugin-kai-gemma" for android
-Subproject Path: CordovaLib
-Subproject Path: app
-=== DEBUG: platforms/android/cordova contents right after platform add ===
-ls: cannot access 'platforms/android/cordova/': No such file or directory
-cordova/ dir MISSING
-=== DEBUG: config.xml plugin entries ===
-    <preference name="GradlePluginKotlinEnabled" value="true" />
-    <preference name="GradlePluginKotlinCodeStyle" value="official" />
-=== DEBUG: platforms/android/cordova contents right before explicit plugin add ===
-ls: cannot access 'platforms/android/cordova/': No such file or directory
-cordova/ dir MISSING at this point
-No scripts found for hook "before_plugin_add".
-No version specified for cordova-plugin-android-permissions, retrieving version from config.xml
-No version for cordova-plugin-android-permissions saved in config.xml or package.json
-Attempting to use npm info for cordova-plugin-android-permissions to choose a compatible release
-npm info for cordova-plugin-android-permissions did not contain any engine info. Fetching latest release
-Calling plugman.fetch on plugin "cordova-plugin-android-permissions"
-fetch: Installing cordova-plugin-android-permissions to /home/runner/work/kai_app/kai_app/build
-Copying plugin "/home/runner/work/kai_app/kai_app/build/node_modules/cordova-plugin-android-permissions" => "/home/runner/work/kai_app/kai_app/build/plugins/cordova-plugin-android-permissions"
-Calling plugman.install on plugin "/home/runner/work/kai_app/kai_app/build/plugins/cordova-plugin-android-permissions" for platform "android
-Installing "cordova-plugin-android-permissions" for android
-Finding scripts for "before_plugin_install" hook from plugin cordova-plugin-android-permissions on android platform only.
-No scripts found for hook "before_plugin_install".
-Install start for "cordova-plugin-android-permissions" on android.
-Unable to load Platform API from /home/runner/work/kai_app/kai_app/build/platforms/android/cordova/Api.js:
-Error: Cannot find module '/home/runner/work/kai_app/kai_app/build/platforms/android/cordova/Api.js'
-Require stack:
-- /opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/cordova/util.js
-- /opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/platforms/index.js
-- /opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/platforms/platforms.js
-- /opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/plugman/install.js
-- /opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/plugman/plugman.js
-- /opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/cordova-lib.js
-- /opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/src/help.js
-- /opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/src/cli.js
-- /opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/bin/cordova
-    at Module._resolveFilename (node:internal/modules/cjs/loader:1207:15)
-    at Function.resolve (node:internal/modules/helpers:193:19)
-    at Object.requireNoCache (/opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/cordova/util.js:57:34)
-    at Object.getPlatformApiFunction (/opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/cordova/util.js:311:31)
-    at Object.getPlatformApi (/opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/platforms/index.js:55:34)
-    at handleInstall (/opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/plugman/install.js:551:29)
-    at /opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/plugman/install.js:335:28
-Unable to load module cordova-android by name:
-Error: Cannot find module 'cordova-android'
-Require stack:
-- /opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/cordova/util.js
-- /opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/platforms/index.js
-- /opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/platforms/platforms.js
-- /opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/plugman/install.js
-- /opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/plugman/plugman.js
-- /opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/cordova-lib.js
-- /opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/src/help.js
-- /opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/src/cli.js
-- /opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/bin/cordova
-    at Module._resolveFilename (node:internal/modules/cjs/loader:1207:15)
-    at Module._load (node:internal/modules/cjs/loader:1038:27)
-    at Module.require (node:internal/modules/cjs/loader:1289:19)
-    at require (node:internal/modules/helpers:182:18)
-    at Object.getPlatformApiFunction (/opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/cordova/util.js:319:27)
-    at Object.getPlatformApi (/opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/platforms/index.js:55:34)
-    at handleInstall (/opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/plugman/install.js:551:29)
-    at /opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/plugman/install.js:335:28
-Failed to install 'cordova-plugin-android-permissions': CordovaError: Could not load API for android project /home/runner/work/kai_app/kai_app/build/platforms/android/cordova/Api.js
-    at Object.getPlatformApiFunction (/opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/cordova/util.js:324:19)
-    at Object.getPlatformApi (/opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/platforms/index.js:55:34)
-    at handleInstall (/opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/plugman/install.js:551:29)
-    at /opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/plugman/install.js:335:28
-Could not load API for android project /home/runner/work/kai_app/kai_app/build/platforms/android/cordova/Api.js
-CordovaError: Could not load API for android project /home/runner/work/kai_app/kai_app/build/platforms/android/cordova/Api.js
-    at Object.getPlatformApiFunction (/opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/cordova/util.js:324:19)
-    at Object.getPlatformApi (/opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/platforms/index.js:55:34)
-    at handleInstall (/opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/plugman/install.js:551:29)
-    at /opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/plugman/install.js:335:28
-Unmet project requirements for latest version of cordova-plugin-file:
-    cordova-android (broken in project, >=12.0.0 required)
-Fetching highest version of cordova-plugin-file that this project supports: 4.3.3 (latest is 8.1.3)
-Installing "cordova-plugin-file" for android
-Installing "cordova-plugin-compat" for android
-cordova-android version not detected (lacks script /home/runner/work/kai_app/kai_app/build/platforms/android/cordova/version ), continuing.
-Failed to install 'cordova-plugin-compat': CordovaError: Could not load API for android project /home/runner/work/kai_app/kai_app/build/platforms/android/cordova/Api.js
-    at Object.getPlatformApiFunction (/opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/cordova/util.js:324:19)
-    at Object.getPlatformApi (/opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/platforms/index.js:55:34)
-    at handleInstall (/opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/plugman/install.js:551:29)
-    at /opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/plugman/install.js:335:28
-Failed to install 'cordova-plugin-file': CordovaError: Could not load API for android project /home/runner/work/kai_app/kai_app/build/platforms/android/cordova/Api.js
-    at Object.getPlatformApiFunction (/opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/cordova/util.js:324:19)
-    at Object.getPlatformApi (/opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/platforms/index.js:55:34)
-    at handleInstall (/opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/plugman/install.js:551:29)
-    at /opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/plugman/install.js:335:28
-Could not load API for android project /home/runner/work/kai_app/kai_app/build/platforms/android/cordova/Api.js
-Unmet project requirements for latest version of cordova-plugin-inappbrowser:
-    cordova-android (broken in project, >=10.0.0 required)
-Fetching highest version of cordova-plugin-inappbrowser that this project supports: 4.1.0 (latest is 7.0.0)
-Installing "cordova-plugin-inappbrowser" for android
-Failed to install 'cordova-plugin-inappbrowser': CordovaError: Could not load API for android project /home/runner/work/kai_app/kai_app/build/platforms/android/cordova/Api.js
-    at Object.getPlatformApiFunction (/opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/cordova/util.js:324:19)
-    at Object.getPlatformApi (/opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/platforms/index.js:55:34)
-    at handleInstall (/opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/plugman/install.js:551:29)
-    at /opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/plugman/install.js:335:28
-Could not load API for android project /home/runner/work/kai_app/kai_app/build/platforms/android/cordova/Api.js
-Installing "cordova-plugin-kai-gemma" for android
-Failed to install 'cordova-plugin-kai-gemma': CordovaError: Could not load API for android project /home/runner/work/kai_app/kai_app/build/platforms/android/cordova/Api.js
-    at Object.getPlatformApiFunction (/opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/cordova/util.js:324:19)
-    at Object.getPlatformApi (/opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/platforms/index.js:55:34)
-    at handleInstall (/opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/plugman/install.js:551:29)
-    at /opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/plugman/install.js:335:28
-Could not load API for android project /home/runner/work/kai_app/kai_app/build/platforms/android/cordova/Api.js
+npm warn deprecated q@1.5.1: You or someone you depend on is using Q, the JavaScript Promise library that gave JavaScript developers strong feelings about promises. They can almost certainly migrate to the native JavaScript promise now. Thank you literally everyone for joining me in this bet against the odds. Be excellent to each other.
+npm warn deprecated
+npm warn deprecated (For a CapTP with native promises, see @endo/eventual-send and @endo/captp)
+
+added 76 packages in 2s
+Using cordova-fetch for ./node_modules/cordova-android
+Failed to fetch platform ./node_modules/cordova-android
+Probably this is either a connection problem, or platform spec is incorrect.
+Check your connection and platform name/version/URL.
+CordovaError: Error: ENOENT: no such file or directory, open '/home/runner/work/kai_app/kai_app/node_modules/cordova-android/package.json'
