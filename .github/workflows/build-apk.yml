@@ -99,7 +99,7 @@ jobs:
           cp config.xml build/config.xml
           cd build
           npm install --no-save --no-audit --no-fund cordova-android@12.0.1
-          cordova platform add ./node_modules/cordova-android
+          cordova platform add "$(pwd)/node_modules/cordova-android"
           echo "=== DEBUG: platforms/android/cordova contents right after platform add ==="
           ls -la platforms/android/cordova/ || echo "cordova/ dir MISSING"
           # cordova-android@12 bundles its own Gradle wrapper (7.6) which can't
