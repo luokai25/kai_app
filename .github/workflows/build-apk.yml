@@ -84,7 +84,9 @@ jobs:
         id: buildapk
         continue-on-error: true
         run: |
-          set -e -o pipefail
+          set -o pipefail
+          exec > >(tee /tmp/build-full.log) 2>&1
+          set -e
           echo "=== Java version at build time ==="
           java -version
           export JAVA_HOME="${JAVA_HOME_21_X64:-$JAVA_HOME}"
@@ -119,7 +121,7 @@ jobs:
           cordova plugin add cordova-plugin-file || true
           cordova plugin add cordova-plugin-inappbrowser || true
           cordova plugin add ../plugins/cordova-plugin-kai-gemma
-          cordova build android --debug -- --packageType=apk 2>&1 | tee /tmp/build-full.log
+          cordova build android --debug -- --packageType=apk
 
       - name: Upload build log on failure
         if: always() && steps.buildapk.outcome == 'failure'
