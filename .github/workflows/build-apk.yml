@@ -103,7 +103,7 @@ jobs:
           find node_modules/cordova-android -maxdepth 3 -type d
           echo "=== DEBUG: searching for Api.js and version script in package ==="
           find node_modules/cordova-android -iname "Api.js" -o -iname "version"
-          cordova platform add android@12
+          cordova platform add android@12 --verbose
           echo "=== DEBUG: platforms/android/cordova contents right after platform add ==="
           ls -la platforms/android/cordova/ 2>&1 || echo "cordova/ dir MISSING"
           if [ ! -d platforms/android/cordova ]; then
