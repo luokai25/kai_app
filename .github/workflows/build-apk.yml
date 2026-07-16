@@ -98,11 +98,10 @@ jobs:
           cp -r www build/www
           cp config.xml build/config.xml
           cd build
-          cordova platform add android@12
+          npm install --no-save --no-audit --no-fund cordova-android@12.0.1
+          cordova platform add ./node_modules/cordova-android
           echo "=== DEBUG: platforms/android/cordova contents right after platform add ==="
           ls -la platforms/android/cordova/ || echo "cordova/ dir MISSING"
-          echo "=== DEBUG: config.xml plugin entries ==="
-          grep -i plugin config.xml || echo "no plugin entries in config.xml"
           # cordova-android@12 bundles its own Gradle wrapper (7.6) which can't
           # parse Java 21 bytecode (e.g. from MediaPipe tasks-genai). Override
           # it to Gradle 8.7+ which supports both JDK 21 and toolchain compilation.
