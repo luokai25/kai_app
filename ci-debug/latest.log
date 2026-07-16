@@ -12,18 +12,147 @@ npm warn deprecated
 npm warn deprecated (For a CapTP with native promises, see @endo/eventual-send and @endo/captp)
 
 added 76 packages in 2s
-=== DEBUG: cordova-android package contents ===
-total 152
-drwxr-xr-x  6 runner runner   4096 Jul 16 19:53 .
-drwxr-xr-x 75 runner runner   4096 Jul 16 19:53 ..
--rw-r--r--  1 runner runner   1372 Jul 16 19:53 CONTRIBUTING.md
--rw-r--r--  1 runner runner  11350 Jul 16 19:53 LICENSE
--rw-r--r--  1 runner runner    168 Jul 16 19:53 NOTICE
--rw-r--r--  1 runner runner   2808 Jul 16 19:53 README.md
--rw-r--r--  1 runner runner 100814 Jul 16 19:53 RELEASENOTES.md
-drwxr-xr-x  4 runner runner   4096 Jul 16 19:53 framework
-drwxr-xr-x  5 runner runner   4096 Jul 16 19:53 lib
--rw-r--r--  1 runner runner   1728 Jul 16 19:53 package.json
-drwxr-xr-x  4 runner runner   4096 Jul 16 19:53 templates
-drwxr-xr-x  2 runner runner   4096 Jul 16 19:53 types
-ls: cannot access 'node_modules/cordova-android/cordova-js-src/': No such file or directory
+=== DEBUG: cordova-android package layout ===
+node_modules/cordova-android
+node_modules/cordova-android/types
+node_modules/cordova-android/templates
+node_modules/cordova-android/templates/cordova
+node_modules/cordova-android/templates/cordova/lib
+node_modules/cordova-android/templates/project
+node_modules/cordova-android/templates/project/res
+node_modules/cordova-android/templates/project/assets
+node_modules/cordova-android/templates/project/app
+node_modules/cordova-android/lib
+node_modules/cordova-android/lib/config
+node_modules/cordova-android/lib/env
+node_modules/cordova-android/lib/builders
+node_modules/cordova-android/framework
+node_modules/cordova-android/framework/src
+node_modules/cordova-android/framework/src/org
+node_modules/cordova-android/framework/gradle
+node_modules/cordova-android/framework/gradle/wrapper
+=== DEBUG: searching for Api.js and version script in package ===
+node_modules/cordova-android/templates/cordova/version
+node_modules/cordova-android/templates/cordova/Api.js
+node_modules/cordova-android/lib/Api.js
+Using cordova-fetch for cordova-android@12
+Adding android project...
+Creating Cordova project for the Android platform:
+	Path: platforms/android
+	Package: com.kai.app
+	Name: KAI
+	Activity: MainActivity
+	Android Target SDK: android-33
+	Android Compile SDK: 33
+Subproject Path: CordovaLib
+Subproject Path: app
+Android project created with cordova-android@12.0.1
+Installing "cordova-plugin-kai-gemma" for android
+Subproject Path: CordovaLib
+Subproject Path: app
+=== DEBUG: platforms/android/cordova contents right after platform add ===
+ls: cannot access 'platforms/android/cordova/': No such file or directory
+cordova/ dir MISSING
+=== WORKAROUND: manually copying platform scripts ===
+Found source dir: node_modules/cordova-android/templates/cordova
+total 28
+drwxr-xr-x 3 runner runner 4096 Jul 16 19:56 .
+drwxr-xr-x 3 runner runner 4096 Jul 16 19:56 ..
+-rw-r--r-- 1 runner runner  862 Jul 16 19:56 Api.js
+-rwxr-xr-x 1 runner runner 1058 Jul 16 19:56 android_sdk_version
+-rw-r--r-- 1 runner runner 1038 Jul 16 19:56 defaults.xml
+drwxr-xr-x 2 runner runner 4096 Jul 16 19:56 lib
+-rwxr-xr-x 1 runner runner  940 Jul 16 19:56 version
+=== DEBUG: platforms/android/cordova contents right after platform add ===
+total 28
+drwxr-xr-x 3 runner runner 4096 Jul 16 19:56 .
+drwxr-xr-x 3 runner runner 4096 Jul 16 19:56 ..
+-rw-r--r-- 1 runner runner  862 Jul 16 19:56 Api.js
+-rwxr-xr-x 1 runner runner 1058 Jul 16 19:56 android_sdk_version
+-rw-r--r-- 1 runner runner 1038 Jul 16 19:56 defaults.xml
+drwxr-xr-x 2 runner runner 4096 Jul 16 19:56 lib
+-rwxr-xr-x 1 runner runner  940 Jul 16 19:56 version
+=== DEBUG: platforms/android/cordova contents right before explicit plugin add ===
+total 28
+drwxr-xr-x 3 runner runner 4096 Jul 16 19:56 .
+drwxr-xr-x 4 runner runner 4096 Jul 16 19:56 ..
+-rw-r--r-- 1 runner runner  862 Jul 16 19:56 Api.js
+-rwxr-xr-x 1 runner runner 1058 Jul 16 19:56 android_sdk_version
+-rw-r--r-- 1 runner runner 1038 Jul 16 19:56 defaults.xml
+drwxr-xr-x 2 runner runner 4096 Jul 16 19:56 lib
+-rwxr-xr-x 1 runner runner  940 Jul 16 19:56 version
+No scripts found for hook "before_plugin_add".
+No version specified for cordova-plugin-android-permissions, retrieving version from config.xml
+No version for cordova-plugin-android-permissions saved in config.xml or package.json
+Attempting to use npm info for cordova-plugin-android-permissions to choose a compatible release
+npm info for cordova-plugin-android-permissions did not contain any engine info. Fetching latest release
+Calling plugman.fetch on plugin "cordova-plugin-android-permissions"
+fetch: Installing cordova-plugin-android-permissions to /home/runner/work/kai_app/kai_app/build
+Copying plugin "/home/runner/work/kai_app/kai_app/build/node_modules/cordova-plugin-android-permissions" => "/home/runner/work/kai_app/kai_app/build/plugins/cordova-plugin-android-permissions"
+Calling plugman.install on plugin "/home/runner/work/kai_app/kai_app/build/plugins/cordova-plugin-android-permissions" for platform "android
+Installing "cordova-plugin-android-permissions" for android
+Finding scripts for "before_plugin_install" hook from plugin cordova-plugin-android-permissions on android platform only.
+No scripts found for hook "before_plugin_install".
+Install start for "cordova-plugin-android-permissions" on android.
+Loaded API for android project /home/runner/work/kai_app/kai_app/build/platforms/android/cordova/Api.js
+Failed to install 'cordova-plugin-android-permissions': Error: /home/runner/work/kai_app/kai_app/build/platforms/android/cdv-gradle-config.json: ENOENT: no such file or directory, open '/home/runner/work/kai_app/kai_app/build/platforms/android/cdv-gradle-config.json'
+    at Object.readFileSync (node:fs:448:20)
+    at Object.readFileSync (/home/runner/work/kai_app/kai_app/node_modules/jsonfile/index.js:50:22)
+    at CordovaGradleConfigParser._readConfig (/home/runner/work/kai_app/kai_app/node_modules/cordova-android/lib/config/CordovaGradleConfigParser.js:44:19)
+    at new CordovaGradleConfigParser (/home/runner/work/kai_app/kai_app/node_modules/cordova-android/lib/config/CordovaGradleConfigParser.js:34:38)
+    at CordovaGradleConfigParserFactory.create (/home/runner/work/kai_app/kai_app/node_modules/cordova-android/lib/config/CordovaGradleConfigParserFactory.js:32:16)
+    at new AndroidProject (/home/runner/work/kai_app/kai_app/node_modules/cordova-android/lib/AndroidProject.js:66:75)
+    at AndroidProject.getProjectFile (/home/runner/work/kai_app/kai_app/node_modules/cordova-android/lib/AndroidProject.js:187:44)
+    at Api.addPlugin (/home/runner/work/kai_app/kai_app/node_modules/cordova-android/lib/Api.js:144:40)
+    at handleInstall (/opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/plugman/install.js:552:10)
+    at /opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/plugman/install.js:335:28
+TypeError [ERR_INVALID_ARG_TYPE]: The "code" argument must be of type number. Received type string ('ENOENT')
+    at process.set [as exitCode] (node:internal/bootstrap/node:123:9)
+    at /opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/bin/cordova:32:22
+Installing "cordova-plugin-file" for android
+Failed to install 'cordova-plugin-file': Error: /home/runner/work/kai_app/kai_app/build/platforms/android/cdv-gradle-config.json: ENOENT: no such file or directory, open '/home/runner/work/kai_app/kai_app/build/platforms/android/cdv-gradle-config.json'
+    at Object.readFileSync (node:fs:448:20)
+    at Object.readFileSync (/home/runner/work/kai_app/kai_app/node_modules/jsonfile/index.js:50:22)
+    at CordovaGradleConfigParser._readConfig (/home/runner/work/kai_app/kai_app/node_modules/cordova-android/lib/config/CordovaGradleConfigParser.js:44:19)
+    at new CordovaGradleConfigParser (/home/runner/work/kai_app/kai_app/node_modules/cordova-android/lib/config/CordovaGradleConfigParser.js:34:38)
+    at CordovaGradleConfigParserFactory.create (/home/runner/work/kai_app/kai_app/node_modules/cordova-android/lib/config/CordovaGradleConfigParserFactory.js:32:16)
+    at new AndroidProject (/home/runner/work/kai_app/kai_app/node_modules/cordova-android/lib/AndroidProject.js:66:75)
+    at AndroidProject.getProjectFile (/home/runner/work/kai_app/kai_app/node_modules/cordova-android/lib/AndroidProject.js:187:44)
+    at Api.addPlugin (/home/runner/work/kai_app/kai_app/node_modules/cordova-android/lib/Api.js:144:40)
+    at handleInstall (/opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/plugman/install.js:552:10)
+    at /opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/plugman/install.js:335:28
+TypeError [ERR_INVALID_ARG_TYPE]: The "code" argument must be of type number. Received type string ('ENOENT')
+    at process.set [as exitCode] (node:internal/bootstrap/node:123:9)
+    at /opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/bin/cordova:32:22
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+Installing "cordova-plugin-inappbrowser" for android
+Failed to install 'cordova-plugin-inappbrowser': Error: /home/runner/work/kai_app/kai_app/build/platforms/android/cdv-gradle-config.json: ENOENT: no such file or directory, open '/home/runner/work/kai_app/kai_app/build/platforms/android/cdv-gradle-config.json'
+    at Object.readFileSync (node:fs:448:20)
+    at Object.readFileSync (/home/runner/work/kai_app/kai_app/node_modules/jsonfile/index.js:50:22)
+    at CordovaGradleConfigParser._readConfig (/home/runner/work/kai_app/kai_app/node_modules/cordova-android/lib/config/CordovaGradleConfigParser.js:44:19)
+    at new CordovaGradleConfigParser (/home/runner/work/kai_app/kai_app/node_modules/cordova-android/lib/config/CordovaGradleConfigParser.js:34:38)
+    at CordovaGradleConfigParserFactory.create (/home/runner/work/kai_app/kai_app/node_modules/cordova-android/lib/config/CordovaGradleConfigParserFactory.js:32:16)
+    at new AndroidProject (/home/runner/work/kai_app/kai_app/node_modules/cordova-android/lib/AndroidProject.js:66:75)
+    at AndroidProject.getProjectFile (/home/runner/work/kai_app/kai_app/node_modules/cordova-android/lib/AndroidProject.js:187:44)
+    at Api.addPlugin (/home/runner/work/kai_app/kai_app/node_modules/cordova-android/lib/Api.js:144:40)
+    at handleInstall (/opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/plugman/install.js:552:10)
+    at /opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/plugman/install.js:335:28
+TypeError [ERR_INVALID_ARG_TYPE]: The "code" argument must be of type number. Received type string ('ENOENT')
+    at process.set [as exitCode] (node:internal/bootstrap/node:123:9)
+    at /opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/bin/cordova:32:22
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+Installing "cordova-plugin-kai-gemma" for android
+Failed to install 'cordova-plugin-kai-gemma': Error: /home/runner/work/kai_app/kai_app/build/platforms/android/cdv-gradle-config.json: ENOENT: no such file or directory, open '/home/runner/work/kai_app/kai_app/build/platforms/android/cdv-gradle-config.json'
+    at Object.readFileSync (node:fs:448:20)
+    at Object.readFileSync (/home/runner/work/kai_app/kai_app/node_modules/jsonfile/index.js:50:22)
+    at CordovaGradleConfigParser._readConfig (/home/runner/work/kai_app/kai_app/node_modules/cordova-android/lib/config/CordovaGradleConfigParser.js:44:19)
+    at new CordovaGradleConfigParser (/home/runner/work/kai_app/kai_app/node_modules/cordova-android/lib/config/CordovaGradleConfigParser.js:34:38)
+    at CordovaGradleConfigParserFactory.create (/home/runner/work/kai_app/kai_app/node_modules/cordova-android/lib/config/CordovaGradleConfigParserFactory.js:32:16)
+    at new AndroidProject (/home/runner/work/kai_app/kai_app/node_modules/cordova-android/lib/AndroidProject.js:66:75)
+    at AndroidProject.getProjectFile (/home/runner/work/kai_app/kai_app/node_modules/cordova-android/lib/AndroidProject.js:187:44)
+    at Api.addPlugin (/home/runner/work/kai_app/kai_app/node_modules/cordova-android/lib/Api.js:144:40)
+    at handleInstall (/opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/plugman/install.js:552:10)
+    at /opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/node_modules/cordova-lib/src/plugman/install.js:335:28
+TypeError [ERR_INVALID_ARG_TYPE]: The "code" argument must be of type number. Received type string ('ENOENT')
+    at process.set [as exitCode] (node:internal/bootstrap/node:123:9)
+    at /opt/hostedtoolcache/node/20.20.2/x64/lib/node_modules/cordova/bin/cordova:32:22
