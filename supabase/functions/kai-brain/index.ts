@@ -535,8 +535,6 @@ async function getEvolutionCount(): Promise<number> {
   } catch { return 0; }
 }
 
-}
-
 // ── Streaming agent loop (from Build Q/R, unchanged) ──────────────────────
 const SELF_PROMPT=`You are KAI — autonomous AI with full control over github.com/${GH_REPO}. Always write complete working code.`;
 
