@@ -149,8 +149,8 @@ jobs:
           sed -i '/android\.enableJetifier/d;/android\.useAndroidX/d' platforms/android/gradle.properties
           echo "android.enableJetifier=false" >> platforms/android/gradle.properties
           echo "android.useAndroidX=true" >> platforms/android/gradle.properties
-          echo "=== DEBUG: final gradle-wrapper.properties ==="
-          cat platforms/android/gradle/wrapper/gradle-wrapper.properties
+          echo "=== DEBUG: gradle-wrapper.properties (may not exist yet - generated at build time) ==="
+          cat platforms/android/gradle/wrapper/gradle-wrapper.properties 2>/dev/null || echo "(not yet generated)"
           echo "=== DEBUG: final gradle.properties ==="
           cat platforms/android/gradle.properties
 
