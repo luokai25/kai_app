@@ -118,15 +118,29 @@ jobs:
           cordova platform add android@12
           echo "=== DEBUG: platforms/android/cordova contents ==="
           ls -la platforms/android/cordova/
-          # cordova-android@12 bundles its own Gradle wrapper (7.6) which can't
-          # parse Java 21 bytecode (e.g. from MediaPipe tasks-genai). Override
-          # it to Gradle 8.7+ which supports both JDK 21 and toolchain compilation.
+          cordova plugin add cordova-plugin-android-permissions
+          cordova plugin add cordova-plugin-file
+          cordova plugin add cordova-plugin-inappbrowser
+          cordova plugin add "$GITHUB_WORKSPACE/plugins/cordova-plugin-kai-gemma"
+
+          # Apply these overrides LAST, after all plugin installs. Installing
+          # kai-gemma (which has a <framework> dependency on MediaPipe) makes
+          # cordova-android regenerate the gradle wrapper via its own internal
+          # `gradle wrapper` task — which silently reverts gradle-wrapper.properties
+          # back to its bundled default (Gradle 7.6) if we'd set it earlier.
+          # Gradle 7.6 can't parse Java 21 class files (major version 65), so
+          # this MUST be the final word before the build actually runs.
+          #
+          # cordova-android@12 bundles Gradle 7.6, incompatible with JDK 21
+          # bytecode (e.g. from MediaPipe tasks-genai). Override to 8.9, which
+          # supports both JDK 21 and toolchain compilation.
           mkdir -p platforms/android/gradle/wrapper
           echo "distributionUrl=https\://services.gradle.org/distributions/gradle-8.9-all.zip" > platforms/android/gradle/wrapper/gradle-wrapper.properties
           echo "distributionBase=GRADLE_USER_HOME" >> platforms/android/gradle/wrapper/gradle-wrapper.properties
           echo "distributionPath=wrapper/dists" >> platforms/android/gradle/wrapper/gradle-wrapper.properties
           echo "zipStoreBase=GRADLE_USER_HOME" >> platforms/android/gradle/wrapper/gradle-wrapper.properties
           echo "zipStorePath=wrapper/dists" >> platforms/android/gradle/wrapper/gradle-wrapper.properties
+
           # Disable Jetifier: it exists only to rewrite legacy android.support.*
           # references into AndroidX. All our plugins (file, inappbrowser,
           # android-permissions, kai-gemma) are already AndroidX-native, so
@@ -135,12 +149,16 @@ jobs:
           # class file major version 65) its transformer can't read, crashing
           # the whole build with "Unsupported class file major version 65".
           # Turning it off skips that broken, unnecessary transform entirely.
+          # (Also strip any earlier android.useAndroidX/enableJetifier lines
+          # the plugin-install wrapper regen may have appended, so ours win.)
+          sed -i '/android\.enableJetifier/d;/android\.useAndroidX/d' platforms/android/gradle.properties
           echo "android.enableJetifier=false" >> platforms/android/gradle.properties
           echo "android.useAndroidX=true" >> platforms/android/gradle.properties
-          cordova plugin add cordova-plugin-android-permissions
-          cordova plugin add cordova-plugin-file
-          cordova plugin add cordova-plugin-inappbrowser
-          cordova plugin add "$GITHUB_WORKSPACE/plugins/cordova-plugin-kai-gemma"
+          echo "=== DEBUG: final gradle-wrapper.properties ==="
+          cat platforms/android/gradle/wrapper/gradle-wrapper.properties
+          echo "=== DEBUG: final gradle.properties ==="
+          cat platforms/android/gradle.properties
+
           cordova build android --debug -- --packageType=apk
 
       - name: Upload build log on failure
