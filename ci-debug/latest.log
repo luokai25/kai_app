@@ -23,13 +23,13 @@ Subproject Path: app
 Android project created with cordova-android@12.0.1
 === DEBUG: platforms/android/cordova contents ===
 total 28
-drwxr-xr-x 3 runner runner 4096 Jul 17 00:36 .
-drwxr-xr-x 6 runner runner 4096 Jul 17 00:36 ..
--rw-r--r-- 1 runner runner  862 Jul 17 00:36 Api.js
--rwxr-xr-x 1 runner runner 1058 Jul 17 00:36 android_sdk_version
--rw-r--r-- 1 runner runner 1038 Jul 17 00:36 defaults.xml
-drwxr-xr-x 2 runner runner 4096 Jul 17 00:36 lib
--rwxr-xr-x 1 runner runner  940 Jul 17 00:36 version
+drwxr-xr-x 3 runner runner 4096 Jul 17 00:48 .
+drwxr-xr-x 6 runner runner 4096 Jul 17 00:48 ..
+-rw-r--r-- 1 runner runner  862 Jul 17 00:48 Api.js
+-rwxr-xr-x 1 runner runner 1058 Jul 17 00:48 android_sdk_version
+-rw-r--r-- 1 runner runner 1038 Jul 17 00:48 defaults.xml
+drwxr-xr-x 2 runner runner 4096 Jul 17 00:48 lib
+-rwxr-xr-x 1 runner runner  940 Jul 17 00:48 version
 Installing "cordova-plugin-android-permissions" for android
 Adding cordova-plugin-android-permissions to package.json
 Installing "cordova-plugin-file" for android
@@ -54,75 +54,4 @@ Subproject Path: CordovaLib
 Subproject Path: app
 Adding cordova-plugin-kai-gemma to package.json
 === DEBUG: final gradle-wrapper.properties ===
-distributionUrl=https\://services.gradle.org/distributions/gradle-8.9-all.zip
-distributionBase=GRADLE_USER_HOME
-distributionPath=wrapper/dists
-zipStoreBase=GRADLE_USER_HOME
-zipStorePath=wrapper/dists
-=== DEBUG: final gradle.properties ===
-org.gradle.jvmargs=-Xmx2048m
-kotlin.code.style=officialandroid.enableJetifier=false
-android.useAndroidX=true
-Checking Java JDK and Android SDK versions
-ANDROID_HOME=/usr/local/lib/android/sdk (recommended setting)
-ANDROID_SDK_ROOT=/usr/local/lib/android/sdk (DEPRECATED)
-Using Android SDK: /usr/local/lib/android/sdk
-
-Welcome to Gradle 8.7!
-
-Here are the highlights of this release:
- - Compiling and testing with Java 22
- - Cacheable Groovy script compilation
- - New methods in lazy collection properties
-
-For more details see https://docs.gradle.org/8.7/release-notes.html
-
-Starting a Gradle Daemon (subsequent builds will be faster)
-> Task :wrapper
-
-Deprecated Gradle features were used in this build, making it incompatible with Gradle 9.0.
-
-You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
-
-For more on this, please refer to https://docs.gradle.org/8.7/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
-
-BUILD SUCCESSFUL in 5s
-1 actionable task: 1 executed
-Subproject Path: CordovaLib
-Subproject Path: app
-Downloading https://services.gradle.org/distributions/gradle-7.6-all.zip
-...............10%................20%................30%................40%...............50%................60%................70%................80%...............90%................100%
-
-Welcome to Gradle 7.6!
-
-Here are the highlights of this release:
- - Added support for Java 19.
- - Introduced `--rerun` flag for individual task rerun.
- - Improved dependency block for test suites to be strongly typed.
- - Added a pluggable system for Java toolchains provisioning.
-
-For more details see https://docs.gradle.org/7.6/release-notes.html
-
-Starting a Gradle Daemon (subsequent builds will be faster)
-
-FAILURE: Build failed with an exception.
-
-* What went wrong:
-Could not open settings generic class cache for settings file '/home/runner/work/_temp/kai_build/platforms/android/settings.gradle' (/home/runner/.gradle/caches/7.6/scripts/dqjrgsw17c62wbpoagod92e1e).
-> BUG! exception in phase 'semantic analysis' in source unit '_BuildScript_' Unsupported class file major version 65
-
-* Try:
-> Run with --stacktrace option to get the stack trace.
-> Run with --info or --debug option to get more log output.
-> Run with --scan to get full insights.
-
-* Get more help at https://help.gradle.org
-
-Deprecated Gradle features were used in this build, making it incompatible with Gradle 8.0.
-
-You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
-
-See https://docs.gradle.org/7.6/userguide/command_line_interface.html#sec:command_line_warnings
-
-BUILD FAILED in 6s
-Command failed with exit code 1: /home/runner/work/_temp/kai_build/platforms/android/gradlew -b /home/runner/work/_temp/kai_build/platforms/android/build.gradle cdvBuildDebug
+cat: platforms/android/gradle/wrapper/gradle-wrapper.properties: No such file or directory
