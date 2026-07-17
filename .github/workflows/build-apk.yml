@@ -93,31 +93,31 @@ jobs:
           export PATH="$JAVA_HOME/bin:$PATH"
           echo "=== Forced JAVA_HOME: $JAVA_HOME ==="
           java -version
-          cordova create build com.kai.app KAI
-          rm -rf build/www
-          cp -r www build/www
-          cp config.xml build/config.xml
-          cd build
-          npm install --no-save --no-audit --no-fund cordova-android@12.0.1
-          echo "=== DEBUG: cordova-android package layout ==="
-          find node_modules/cordova-android -maxdepth 3 -type d
-          echo "=== DEBUG: searching for Api.js and version script in package ==="
-          find node_modules/cordova-android -iname "Api.js" -o -iname "version"
-          cordova platform add android@12 --verbose
-          echo "=== DEBUG: platforms/android/cordova contents right after platform add ==="
-          ls -la platforms/android/cordova/ 2>&1 || echo "cordova/ dir MISSING"
-          if [ ! -d platforms/android/cordova ]; then
-            echo "=== WORKAROUND: manually copying platform scripts ==="
-            SRC_DIR=$(find node_modules/cordova-android -type d -name cordova | grep -v node_modules/cordova-android/node_modules | head -1)
-            echo "Found source dir: $SRC_DIR"
-            if [ -n "$SRC_DIR" ]; then
-              mkdir -p platforms/android/cordova
-              cp -r "$SRC_DIR"/* platforms/android/cordova/
-              ls -la platforms/android/cordova/
-            fi
-          fi
-          echo "=== DEBUG: platforms/android/cordova contents right after platform add ==="
-          ls -la platforms/android/cordova/ || echo "cordova/ dir MISSING"
+
+          # Build completely OUTSIDE the git checkout. The checkout root
+          # (GITHUB_WORKSPACE) itself contains www/ and config.xml (the
+          # source files copied INTO the cordova project below). cordova-lib's
+          # isCordova() project-root detection walks UP from cwd looking for
+          # a directory containing both www/ and config.xml — if it ever fails
+          # to recognize the freshly-created build dir as valid, it climbs
+          # straight into GITHUB_WORKSPACE and silently operates there instead
+          # (wrong node_modules, wrong platforms/android, everything downstream
+          # missing). Building under RUNNER_TEMP means no ancestor directory
+          # can ever look like a valid Cordova project, so this is structurally
+          # impossible regardless of the exact detection quirk.
+          BUILD_DIR="$RUNNER_TEMP/kai_build"
+          rm -rf "$BUILD_DIR"
+          cordova create "$BUILD_DIR" com.kai.app KAI
+          rm -rf "$BUILD_DIR/www"
+          cp -r "$GITHUB_WORKSPACE/www" "$BUILD_DIR/www"
+          cp "$GITHUB_WORKSPACE/config.xml" "$BUILD_DIR/config.xml"
+          echo "BUILD_DIR=$BUILD_DIR" >> "$GITHUB_ENV"
+          cd "$BUILD_DIR"
+          echo "=== DEBUG: confirming project root resolution ==="
+          pwd
+          cordova platform add android@12
+          echo "=== DEBUG: platforms/android/cordova contents ==="
+          ls -la platforms/android/cordova/
           # cordova-android@12 bundles its own Gradle wrapper (7.6) which can't
           # parse Java 21 bytecode (e.g. from MediaPipe tasks-genai). Override
           # it to Gradle 8.7+ which supports both JDK 21 and toolchain compilation.
@@ -137,12 +137,10 @@ jobs:
           # Turning it off skips that broken, unnecessary transform entirely.
           echo "android.enableJetifier=false" >> platforms/android/gradle.properties
           echo "android.useAndroidX=true" >> platforms/android/gradle.properties
-          echo "=== DEBUG: platforms/android/cordova contents right before explicit plugin add ==="
-          ls -la platforms/android/cordova/ || echo "cordova/ dir MISSING at this point"
-          cordova plugin add cordova-plugin-android-permissions --verbose || true
-          cordova plugin add cordova-plugin-file || true
-          cordova plugin add cordova-plugin-inappbrowser || true
-          cordova plugin add ../plugins/cordova-plugin-kai-gemma
+          cordova plugin add cordova-plugin-android-permissions
+          cordova plugin add cordova-plugin-file
+          cordova plugin add cordova-plugin-inappbrowser
+          cordova plugin add "$GITHUB_WORKSPACE/plugins/cordova-plugin-kai-gemma"
           cordova build android --debug -- --packageType=apk
 
       - name: Upload build log on failure
@@ -169,7 +167,7 @@ jobs:
           set -e
           BT=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -1)
           echo "Build tools: $BT"
-          RAW=$(find "$GITHUB_WORKSPACE" -name "app-debug.apk" | head -1)
+          RAW=$(find "$BUILD_DIR" "$GITHUB_WORKSPACE" -name "app-debug.apk" 2>/dev/null | head -1)
           echo "Found APK: $RAW"
           "$BT/zipalign" -f -p 4 "$RAW" aligned.apk
           "$BT/apksigner" sign \
