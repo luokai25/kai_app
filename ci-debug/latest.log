@@ -23,13 +23,13 @@ Subproject Path: app
 Android project created with cordova-android@12.0.1
 === DEBUG: platforms/android/cordova contents ===
 total 28
-drwxr-xr-x 3 runner runner 4096 Jul 17 00:31 .
-drwxr-xr-x 6 runner runner 4096 Jul 17 00:31 ..
--rw-r--r-- 1 runner runner  862 Jul 17 00:31 Api.js
--rwxr-xr-x 1 runner runner 1058 Jul 17 00:31 android_sdk_version
--rw-r--r-- 1 runner runner 1038 Jul 17 00:31 defaults.xml
-drwxr-xr-x 2 runner runner 4096 Jul 17 00:31 lib
--rwxr-xr-x 1 runner runner  940 Jul 17 00:31 version
+drwxr-xr-x 3 runner runner 4096 Jul 17 00:36 .
+drwxr-xr-x 6 runner runner 4096 Jul 17 00:36 ..
+-rw-r--r-- 1 runner runner  862 Jul 17 00:36 Api.js
+-rwxr-xr-x 1 runner runner 1058 Jul 17 00:36 android_sdk_version
+-rw-r--r-- 1 runner runner 1038 Jul 17 00:36 defaults.xml
+drwxr-xr-x 2 runner runner 4096 Jul 17 00:36 lib
+-rwxr-xr-x 1 runner runner  940 Jul 17 00:36 version
 Installing "cordova-plugin-android-permissions" for android
 Adding cordova-plugin-android-permissions to package.json
 Installing "cordova-plugin-file" for android
@@ -53,6 +53,16 @@ Installing "cordova-plugin-kai-gemma" for android
 Subproject Path: CordovaLib
 Subproject Path: app
 Adding cordova-plugin-kai-gemma to package.json
+=== DEBUG: final gradle-wrapper.properties ===
+distributionUrl=https\://services.gradle.org/distributions/gradle-8.9-all.zip
+distributionBase=GRADLE_USER_HOME
+distributionPath=wrapper/dists
+zipStoreBase=GRADLE_USER_HOME
+zipStorePath=wrapper/dists
+=== DEBUG: final gradle.properties ===
+org.gradle.jvmargs=-Xmx2048m
+kotlin.code.style=officialandroid.enableJetifier=false
+android.useAndroidX=true
 Checking Java JDK and Android SDK versions
 ANDROID_HOME=/usr/local/lib/android/sdk (recommended setting)
 ANDROID_SDK_ROOT=/usr/local/lib/android/sdk (DEPRECATED)
@@ -114,5 +124,5 @@ You can use '--warning-mode all' to show the individual deprecation warnings and
 
 See https://docs.gradle.org/7.6/userguide/command_line_interface.html#sec:command_line_warnings
 
-BUILD FAILED in 7s
+BUILD FAILED in 6s
 Command failed with exit code 1: /home/runner/work/_temp/kai_build/platforms/android/gradlew -b /home/runner/work/_temp/kai_build/platforms/android/build.gradle cdvBuildDebug
